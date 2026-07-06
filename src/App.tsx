@@ -12,7 +12,10 @@ import type { ContentItem, ContentType, TeamMember } from "./types";
 const contentSelect =
   "id, type, title, slug, description, cover_image_path, pdf_path, created_at, is_published";
 
-const contentLabels: Record<ContentType, { plural: string; singular: string; path: string }> = {
+const contentLabels: Record<
+  ContentType,
+  { plural: string; singular: string; path: string }
+> = {
   magazine: { plural: "Magazines", singular: "Magazine", path: "/magazines" },
   blog: { plural: "Blogs", singular: "Blog", path: "/blogs" },
   newsletter: {
@@ -156,7 +159,10 @@ function PageShell({
 
 function LoadingMessage({ label = "Loading content..." }: { label?: string }) {
   return (
-    <p className="rounded-xl border border-neutral-200 bg-white p-6 text-neutral-700" role="status">
+    <p
+      className="rounded-xl border border-neutral-200 bg-white p-6 text-neutral-700"
+      role="status"
+    >
       {label}
     </p>
   );
@@ -164,7 +170,10 @@ function LoadingMessage({ label = "Loading content..." }: { label?: string }) {
 
 function ErrorMessage({ message }: { message: string }) {
   return (
-    <p className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700" role="alert">
+    <p
+      className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700"
+      role="alert"
+    >
       {message}
     </p>
   );
@@ -212,7 +221,9 @@ function SimpleCard({
 }) {
   return (
     <Link href={`${hrefBase}/${item.slug}`} className="card-link group p-6">
-      <h3 className="text-xl font-semibold text-neutral-900 transition group-hover:text-blue-900">{item.title || fallbackLabel}</h3>
+      <h3 className="text-xl font-semibold text-neutral-900 transition group-hover:text-blue-900">
+        {item.title || fallbackLabel}
+      </h3>
       <p className="mt-3 text-sm leading-6 text-neutral-600">
         {item.description || fallbackLabel}
       </p>
@@ -240,9 +251,12 @@ function HomePage() {
               </h1>
               <p className="mt-6 text-lg leading-8 text-white">
                 As the creative, literary and political arm of the Asian Student
-                Union at Binghamton University, we publish magazines twice each
-                semester, produce podcasts, and host events representing the
-                Asian student body and beyond. Although we are an Asian-interest
+                Union at Binghamton University, we seek to amplify the voices of
+                the Asian and Asian American community on our campus and beyond.
+                We publish magazines twice a semester filled with student-owned
+                media and writing, spread awareness on issues that impact our
+                communities through our newsletters, produce podcasts, host
+                engaging events and more. Although we are an Asian-interest
                 publication, we are not Asian exclusive and warmly welcome new
                 ideas and voices!
               </p>
@@ -273,16 +287,25 @@ function HomePage() {
           description="The latest published magazine issues from the database."
           href="/magazines"
         />
-        {magazines.error && <ErrorMessage message="Failed to load magazines." />}
+        {magazines.error && (
+          <ErrorMessage message="Failed to load magazines." />
+        )}
         {magazines.loading ? (
           <LoadingMessage />
         ) : (
           <div className="grid gap-8 lg:grid-cols-3">
             {magazines.items.map((item) => (
-              <Link key={item.id} href={`/magazines/${item.slug}`} className="card-link group overflow-hidden">
+              <Link
+                key={item.id}
+                href={`/magazines/${item.slug}`}
+                className="card-link group overflow-hidden"
+              >
                 <div className="relative min-h-[320px] overflow-hidden bg-neutral-100">
                   <SafeImage
-                    src={publicStorageUrl("covers", item.cover_image_path) || "/magazine_image.jpg"}
+                    src={
+                      publicStorageUrl("covers", item.cover_image_path) ||
+                      "/magazine_image.jpg"
+                    }
                     alt=""
                     className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                   />
@@ -291,7 +314,9 @@ function HomePage() {
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.25em] text-white">
                       Magazine
                     </p>
-                    <h3 className="text-2xl font-semibold leading-tight">{item.title}</h3>
+                    <h3 className="text-2xl font-semibold leading-tight">
+                      {item.title}
+                    </h3>
                   </div>
                 </div>
                 <p className="p-6 text-sm leading-6 text-neutral-600">
@@ -304,9 +329,27 @@ function HomePage() {
       </section>
 
       {[
-        { data: newsletters, eyebrow: "Updates", title: "Latest Newsletters", href: "/newsletters", label: "Newsletter" },
-        { data: blogs, eyebrow: "Writing", title: "From the Blog", href: "/blogs", label: "Blog" },
-        { data: media, eyebrow: "Multimedia", title: "Media Production", href: "/media-production", label: "Media" },
+        {
+          data: newsletters,
+          eyebrow: "Updates",
+          title: "Latest Newsletters",
+          href: "/newsletters",
+          label: "Newsletter",
+        },
+        {
+          data: blogs,
+          eyebrow: "Writing",
+          title: "From the Blog",
+          href: "/blogs",
+          label: "Blog",
+        },
+        {
+          data: media,
+          eyebrow: "Multimedia",
+          title: "Media Production",
+          href: "/media-production",
+          label: "Media",
+        },
       ].map((section, index) => (
         <section
           key={section.href}
@@ -367,29 +410,53 @@ function HomePage() {
   );
 }
 
-function MagazineCard({ item, admin, onDeleted }: { item: ContentItem; admin: boolean; onDeleted?: () => void }) {
+function MagazineCard({
+  item,
+  admin,
+  onDeleted,
+}: {
+  item: ContentItem;
+  admin: boolean;
+  onDeleted?: () => void;
+}) {
   return (
     <article className="group overflow-hidden rounded-[10px] border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
-      <Link href={`/magazines/${item.slug}`} className="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-950">
+      <Link
+        href={`/magazines/${item.slug}`}
+        className="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-950"
+      >
         <div className="relative aspect-[3/4] overflow-hidden bg-neutral-200">
           <SafeImage
-            src={publicStorageUrl("covers", item.cover_image_path) || "/magazine_image.jpg"}
+            src={
+              publicStorageUrl("covers", item.cover_image_path) ||
+              "/magazine_image.jpg"
+            }
             alt=""
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
           <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em]">Magazine</p>
-            <h3 className="mt-2 text-xl font-semibold leading-tight">{item.title}</h3>
+            <p className="text-xs font-semibold uppercase tracking-[0.25em]">
+              Magazine
+            </p>
+            <h3 className="mt-2 text-xl font-semibold leading-tight">
+              {item.title}
+            </h3>
           </div>
         </div>
       </Link>
       <div className="flex flex-wrap items-center gap-4 p-5">
-        <Link href={`/magazines/${item.slug}`} className="text-sm font-medium text-neutral-900 underline-offset-4 hover:underline">
+        <Link
+          href={`/magazines/${item.slug}`}
+          className="text-sm font-medium text-neutral-900 underline-offset-4 hover:underline"
+        >
           View Issue
         </Link>
         {admin && (
-          <Link href={`/admin/content/${item.id}/edit`} className="text-sm font-medium text-blue-950 underline-offset-4 hover:underline">
+          <Link
+            href={`/admin/content/${item.id}/edit`}
+            className="text-sm font-medium text-blue-950 underline-offset-4 hover:underline"
+          >
             Edit
           </Link>
         )}
@@ -425,7 +492,10 @@ function MagazinesPage() {
       description="As the literary, political and creative arm of the Asian Student Union, we aim to amplify the voices of students and their communities. Check out our past issues below."
       actions={
         isAdmin && (
-          <Link href="/admin/content/new?type=magazine" className="button-primary">
+          <Link
+            href="/admin/content/new?type=magazine"
+            className="button-primary"
+          >
             Add Magazine
           </Link>
         )
@@ -439,7 +509,10 @@ function MagazinesPage() {
             <div className="grid lg:grid-cols-[1.1fr_0.9fr]">
               <div className="relative min-h-[320px] overflow-hidden">
                 <SafeImage
-                  src={publicStorageUrl("covers", featured.cover_image_path) || "/magazine_image.jpg"}
+                  src={
+                    publicStorageUrl("covers", featured.cover_image_path) ||
+                    "/magazine_image.jpg"
+                  }
                   alt=""
                   className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
                 />
@@ -452,11 +525,17 @@ function MagazinesPage() {
                   {featured.title}
                 </h2>
                 <div className="mt-8 flex flex-wrap gap-3">
-                  <Link href={`/magazines/${featured.slug}`} className="button-primary">
+                  <Link
+                    href={`/magazines/${featured.slug}`}
+                    className="button-primary"
+                  >
                     Open Issue
                   </Link>
                   {isAdmin && (
-                    <Link href={`/admin/content/${featured.id}/edit`} className="button-secondary">
+                    <Link
+                      href={`/admin/content/${featured.id}/edit`}
+                      className="button-secondary"
+                    >
                       Edit Magazine
                     </Link>
                   )}
@@ -487,7 +566,11 @@ function MagazinesPage() {
                 key={item.id}
                 item={item}
                 admin={isAdmin}
-                onDeleted={() => setLocalItems((prev) => prev.filter((entry) => entry.id !== item.id))}
+                onDeleted={() =>
+                  setLocalItems((prev) =>
+                    prev.filter((entry) => entry.id !== item.id),
+                  )
+                }
               />
             ))}
           </div>
@@ -518,7 +601,11 @@ function ContentListPage({ type }: { type: Exclude<ContentType, "magazine"> }) {
       description={`Browse Asian Outlook ${labels.plural.toLowerCase()} entries.`}
     >
       <section className="mx-auto max-w-7xl px-6 py-14 md:px-10 md:py-20">
-        {error && <ErrorMessage message={`Failed to load ${labels.plural.toLowerCase()}.`} />}
+        {error && (
+          <ErrorMessage
+            message={`Failed to load ${labels.plural.toLowerCase()}.`}
+          />
+        )}
         {loading ? (
           <LoadingMessage />
         ) : items.length === 0 ? (
@@ -542,7 +629,13 @@ function ContentListPage({ type }: { type: Exclude<ContentType, "magazine"> }) {
   );
 }
 
-function ContentDetailPage({ type, slug }: { type: ContentType; slug: string }) {
+function ContentDetailPage({
+  type,
+  slug,
+}: {
+  type: ContentType;
+  slug: string;
+}) {
   const [item, setItem] = useState<ContentItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -593,7 +686,8 @@ function ContentDetailPage({ type, slug }: { type: ContentType; slug: string }) 
     );
   }
 
-  const coverUrl = publicStorageUrl("covers", item.cover_image_path) || "/magazine_image.jpg";
+  const coverUrl =
+    publicStorageUrl("covers", item.cover_image_path) || "/magazine_image.jpg";
   const pdfUrl = publicStorageUrl("magazines", item.pdf_path);
   const fileName = item.pdf_path?.split("/").pop() || `${item.slug}.pdf`;
 
@@ -605,7 +699,10 @@ function ContentDetailPage({ type, slug }: { type: ContentType; slug: string }) 
       actions={
         isAdmin && (
           <div className="flex flex-wrap gap-3">
-            <Link href={`/admin/content/${item.id}/edit`} className="button-secondary">
+            <Link
+              href={`/admin/content/${item.id}/edit`}
+              className="button-secondary"
+            >
               Edit
             </Link>
             <DeleteContentButton
@@ -628,17 +725,28 @@ function ContentDetailPage({ type, slug }: { type: ContentType; slug: string }) 
                 className="w-full rounded-lg border border-neutral-200 bg-white object-cover shadow-sm"
               />
               <div className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-sm">
-                <h2 className="text-2xl font-bold text-neutral-950">Read this issue</h2>
+                <h2 className="text-2xl font-bold text-neutral-950">
+                  Read this issue
+                </h2>
                 <p className="mt-3 text-base leading-7 text-neutral-700">
                   Use the accessible PDF controls below, or download the file to
                   read it in your preferred PDF reader.
                 </p>
                 {pdfUrl ? (
                   <div className="mt-6 flex flex-wrap gap-3">
-                    <a href={pdfUrl} className="button-primary" target="_blank" rel="noreferrer">
+                    <a
+                      href={pdfUrl}
+                      className="button-primary"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       Open PDF in new tab
                     </a>
-                    <DownloadPdfButton pdfUrl={pdfUrl} fileName={fileName} className="button-secondary" />
+                    <DownloadPdfButton
+                      pdfUrl={pdfUrl}
+                      fileName={fileName}
+                      className="button-secondary"
+                    />
                   </div>
                 ) : (
                   <ErrorMessage message="No PDF is available for this issue." />
@@ -661,12 +769,73 @@ function ContentDetailPage({ type, slug }: { type: ContentType; slug: string }) 
 
 function AboutPage() {
   const boardSections = [
-    { title: "Leadership", members: [{ role: "President", names: ["Rui Zheng"] }, { role: "Vice President", names: ["Anderson Li"] }, { role: "Secretary", names: ["Stephanie Zhou"] }] },
-    { title: "Editorial Team", members: [{ role: "Editor-In-Chief", names: ["Kate Sum"] }, { role: "Conscience Editor", names: ["Shirley Zhang"] }, { role: "Copy Editors", names: ["Annie Ngo", "Ellie Kim", "Lauren Jim"] }, { role: "Copy Interns", names: ["Ava Gabriel", "Lindsay Chen"] }] },
-    { title: "Layout Team", members: [{ role: "Layout Editors", names: ["Ianna Choi", "Jimmy Zheng", "Kimberly Cheong", "Mandy Guan"] }, { role: "Layout Interns", names: ["Lise Kubota", "Reema Kaur"] }] },
-    { title: "Operations", members: [{ role: "Publicity Chairs", names: ["Kristen Li", "Suguru D'Agostino"] }, { role: "Fundraising Chair", names: ["Madison Hernandez"] }, { role: "Event Coordinators", names: ["Andy Huang", "Madison Lee"] }, { role: "Political Coordinator", names: ["Grace Lim"] }, { role: "Historians", names: ["Jacky Jiang", "Lia Tsin"] }] },
-    { title: "Media Team", members: [{ role: "Media Producers", names: ["Brady Overtoom", "Donovan Lai", "Jasmin Pais", "Lydia Luo"] }] },
-    { title: "Additional Staff", members: [{ role: "Senior Advisor", names: ["Carmen Tan"] }, { role: "General Interns", names: ["Andrea Hsu", "Gabriel Marasigan", "Ryan Shin", "Scarlett Kennedy"] }] },
+    {
+      title: "Leadership",
+      members: [
+        { role: "President", names: ["Rui Zheng"] },
+        { role: "Vice President", names: ["Anderson Li"] },
+        { role: "Secretary", names: ["Stephanie Zhou"] },
+      ],
+    },
+    {
+      title: "Editorial Team",
+      members: [
+        { role: "Editor-In-Chief", names: ["Kate Sum"] },
+        { role: "Conscience Editor", names: ["Shirley Zhang"] },
+        {
+          role: "Copy Editors",
+          names: ["Annie Ngo", "Ellie Kim", "Lauren Jim"],
+        },
+        { role: "Copy Interns", names: ["Ava Gabriel", "Lindsay Chen"] },
+      ],
+    },
+    {
+      title: "Layout Team",
+      members: [
+        {
+          role: "Layout Editors",
+          names: ["Ianna Choi", "Jimmy Zheng", "Kimberly Cheong", "Mandy Guan"],
+        },
+        { role: "Layout Interns", names: ["Lise Kubota", "Reema Kaur"] },
+      ],
+    },
+    {
+      title: "Operations",
+      members: [
+        {
+          role: "Publicity Chairs",
+          names: ["Kristen Li", "Suguru D'Agostino"],
+        },
+        { role: "Fundraising Chair", names: ["Madison Hernandez"] },
+        { role: "Event Coordinators", names: ["Andy Huang", "Madison Lee"] },
+        { role: "Political Coordinator", names: ["Grace Lim"] },
+        { role: "Historians", names: ["Jacky Jiang", "Lia Tsin"] },
+      ],
+    },
+    {
+      title: "Media Team",
+      members: [
+        {
+          role: "Media Producers",
+          names: ["Brady Overtoom", "Donovan Lai", "Jasmin Pais", "Lydia Luo"],
+        },
+      ],
+    },
+    {
+      title: "Additional Staff",
+      members: [
+        { role: "Senior Advisor", names: ["Carmen Tan"] },
+        {
+          role: "General Interns",
+          names: [
+            "Andrea Hsu",
+            "Gabriel Marasigan",
+            "Ryan Shin",
+            "Scarlett Kennedy",
+          ],
+        },
+      ],
+    },
   ];
 
   return (
@@ -685,15 +854,22 @@ function AboutPage() {
         </div>
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
           {boardSections.map((section) => (
-            <section key={section.title} className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-sm">
-              <h3 className="text-xl font-semibold tracking-tight text-neutral-950">{section.title}</h3>
+            <section
+              key={section.title}
+              className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-sm"
+            >
+              <h3 className="text-xl font-semibold tracking-tight text-neutral-950">
+                {section.title}
+              </h3>
               <dl className="mt-5 space-y-5">
                 {section.members.map((member) => (
                   <div key={member.role}>
                     <dt className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-950">
                       {member.role}
                     </dt>
-                    <dd className="mt-2 text-base text-neutral-700">{member.names.join(", ")}</dd>
+                    <dd className="mt-2 text-base text-neutral-700">
+                      {member.names.join(", ")}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -742,9 +918,15 @@ function SearchPage() {
   }, [items, query]);
 
   return (
-    <PageShell title="Search" description="Search published Asian Outlook content.">
+    <PageShell
+      title="Search"
+      description="Search published Asian Outlook content."
+    >
       <section className="mx-auto max-w-4xl px-6 py-14 md:px-10">
-        <label htmlFor="site-search" className="block text-sm font-semibold text-neutral-900">
+        <label
+          htmlFor="site-search"
+          className="block text-sm font-semibold text-neutral-900"
+        >
           Search terms
         </label>
         <input
@@ -806,9 +988,15 @@ function LoginPage() {
   return (
     <PageShell title="Admin Login">
       <section className="mx-auto max-w-md px-6 py-14">
-        <form onSubmit={handleLogin} className="space-y-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
+        <form
+          onSubmit={handleLogin}
+          className="space-y-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm"
+        >
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-neutral-900">
+            <label
+              htmlFor="email"
+              className="block text-sm font-medium text-neutral-900"
+            >
               Email
             </label>
             <input
@@ -822,7 +1010,10 @@ function LoginPage() {
             />
           </div>
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-neutral-900">
+            <label
+              htmlFor="password"
+              className="block text-sm font-medium text-neutral-900"
+            >
               Password
             </label>
             <input
@@ -835,8 +1026,16 @@ function LoginPage() {
               required
             />
           </div>
-          {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
-          <button className="button-primary w-full justify-center" disabled={loading} type="submit">
+          {error && (
+            <p className="text-sm text-red-700" role="alert">
+              {error}
+            </p>
+          )}
+          <button
+            className="button-primary w-full justify-center"
+            disabled={loading}
+            type="submit"
+          >
             {loading ? "Logging in..." : "Login"}
           </button>
         </form>
@@ -900,11 +1099,15 @@ function AdminDashboard() {
           <div className="grid gap-4 md:grid-cols-2">
             <Link href="/admin/content" className="card-link p-6">
               <h2 className="text-xl font-semibold">Manage Content</h2>
-              <p className="mt-2 text-neutral-600">Create, edit, or delete content items.</p>
+              <p className="mt-2 text-neutral-600">
+                Create, edit, or delete content items.
+              </p>
             </Link>
             <Link href="/admin/team" className="card-link p-6">
               <h2 className="text-xl font-semibold">Manage Team</h2>
-              <p className="mt-2 text-neutral-600">Edit team member information.</p>
+              <p className="mt-2 text-neutral-600">
+                Edit team member information.
+              </p>
             </Link>
           </div>
         </section>
@@ -932,25 +1135,45 @@ function AdminContentPage() {
     <RequireAdmin>
       <PageShell
         title="Content"
-        actions={<Link href="/admin/content/new" className="button-primary">New Content</Link>}
+        actions={
+          <Link href="/admin/content/new" className="button-primary">
+            New Content
+          </Link>
+        }
       >
         <section className="mx-auto max-w-6xl px-6 py-14">
-          {loading ? <LoadingMessage /> : (
+          {loading ? (
+            <LoadingMessage />
+          ) : (
             <div className="space-y-4">
               {items.map((item) => (
-                <article key={item.id} className="flex flex-col justify-between gap-4 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm md:flex-row md:items-center">
+                <article
+                  key={item.id}
+                  className="flex flex-col justify-between gap-4 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm md:flex-row md:items-center"
+                >
                   <div>
-                    <h2 className="font-semibold text-neutral-950">{item.title}</h2>
-                    <p className="text-sm text-neutral-600">{contentLabels[item.type].singular}</p>
+                    <h2 className="font-semibold text-neutral-950">
+                      {item.title}
+                    </h2>
+                    <p className="text-sm text-neutral-600">
+                      {contentLabels[item.type].singular}
+                    </p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <Link href={`/admin/content/${item.id}/edit`} className="text-sm font-medium text-blue-950 underline-offset-4 hover:underline">
+                    <Link
+                      href={`/admin/content/${item.id}/edit`}
+                      className="text-sm font-medium text-blue-950 underline-offset-4 hover:underline"
+                    >
                       Edit
                     </Link>
                     <DeleteContentButton
                       id={item.id}
                       className="text-sm font-medium text-red-700 underline-offset-4 hover:underline"
-                      onDeleted={() => setItems((prev) => prev.filter((entry) => entry.id !== item.id))}
+                      onDeleted={() =>
+                        setItems((prev) =>
+                          prev.filter((entry) => entry.id !== item.id),
+                        )
+                      }
                     />
                   </div>
                 </article>
@@ -1008,15 +1231,21 @@ function ContentForm({ id }: { id?: string }) {
 
     if (pdfFile) {
       const path = `${slug}/${Date.now()}-${pdfFile.name}`;
-      const { error: uploadError } = await supabase.storage.from("magazines").upload(path, pdfFile);
-      if (uploadError) throw new Error(`PDF upload failed: ${uploadError.message}`);
+      const { error: uploadError } = await supabase.storage
+        .from("magazines")
+        .upload(path, pdfFile);
+      if (uploadError)
+        throw new Error(`PDF upload failed: ${uploadError.message}`);
       nextPdfPath = path;
     }
 
     if (coverFile) {
       const path = `${slug}/${Date.now()}-${coverFile.name}`;
-      const { error: uploadError } = await supabase.storage.from("covers").upload(path, coverFile);
-      if (uploadError) throw new Error(`Cover upload failed: ${uploadError.message}`);
+      const { error: uploadError } = await supabase.storage
+        .from("covers")
+        .upload(path, coverFile);
+      if (uploadError)
+        throw new Error(`Cover upload failed: ${uploadError.message}`);
       nextCoverPath = path;
     }
 
@@ -1051,7 +1280,9 @@ function ContentForm({ id }: { id?: string }) {
       if (saveError) throw new Error(saveError.message);
       navigate(type === "magazine" ? "/magazines" : contentLabels[type].path);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to save content.");
+      setError(
+        caught instanceof Error ? caught.message : "Unable to save content.",
+      );
     } finally {
       setSaving(false);
     }
@@ -1062,11 +1293,27 @@ function ContentForm({ id }: { id?: string }) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm">
+    <form
+      onSubmit={handleSubmit}
+      className="space-y-5 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm"
+    >
       <div>
-        <label htmlFor="content-type" className="block text-sm font-medium text-neutral-900">Content type</label>
-        <select id="content-type" value={type} onChange={(event) => setType(event.target.value as ContentType)} className="form-input" required>
-          <option value="" disabled>Select type</option>
+        <label
+          htmlFor="content-type"
+          className="block text-sm font-medium text-neutral-900"
+        >
+          Content type
+        </label>
+        <select
+          id="content-type"
+          value={type}
+          onChange={(event) => setType(event.target.value as ContentType)}
+          className="form-input"
+          required
+        >
+          <option value="" disabled>
+            Select type
+          </option>
           <option value="magazine">Magazine</option>
           <option value="blog">Blog</option>
           <option value="newsletter">Newsletter</option>
@@ -1074,32 +1321,88 @@ function ContentForm({ id }: { id?: string }) {
         </select>
       </div>
       <div>
-        <label htmlFor="content-title" className="block text-sm font-medium text-neutral-900">Title</label>
-        <input id="content-title" value={title} onChange={(event) => setTitle(event.target.value)} className="form-input" required />
+        <label
+          htmlFor="content-title"
+          className="block text-sm font-medium text-neutral-900"
+        >
+          Title
+        </label>
+        <input
+          id="content-title"
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          className="form-input"
+          required
+        />
       </div>
       <div>
-        <label htmlFor="content-slug" className="block text-sm font-medium text-neutral-900">Slug</label>
-        <input id="content-slug" value={slug} onChange={(event) => setSlug(event.target.value)} className="form-input" required />
+        <label
+          htmlFor="content-slug"
+          className="block text-sm font-medium text-neutral-900"
+        >
+          Slug
+        </label>
+        <input
+          id="content-slug"
+          value={slug}
+          onChange={(event) => setSlug(event.target.value)}
+          className="form-input"
+          required
+        />
       </div>
       {type === "magazine" && (
         <>
           <div>
-            <label htmlFor="content-pdf" className="block text-sm font-medium text-neutral-900">
+            <label
+              htmlFor="content-pdf"
+              className="block text-sm font-medium text-neutral-900"
+            >
               {id ? "Replace PDF" : "PDF"}
             </label>
-            <input id="content-pdf" type="file" accept="application/pdf" onChange={(event) => setPdfFile(event.target.files?.[0] || null)} className="mt-2 w-full text-sm" required={!id} />
-            {pdfPath && <p className="mt-2 text-sm text-neutral-600">Current PDF: {pdfPath}</p>}
+            <input
+              id="content-pdf"
+              type="file"
+              accept="application/pdf"
+              onChange={(event) => setPdfFile(event.target.files?.[0] || null)}
+              className="mt-2 w-full text-sm"
+              required={!id}
+            />
+            {pdfPath && (
+              <p className="mt-2 text-sm text-neutral-600">
+                Current PDF: {pdfPath}
+              </p>
+            )}
           </div>
           <div>
-            <label htmlFor="content-cover" className="block text-sm font-medium text-neutral-900">
+            <label
+              htmlFor="content-cover"
+              className="block text-sm font-medium text-neutral-900"
+            >
               {id ? "Replace cover image" : "Cover image"}
             </label>
-            <input id="content-cover" type="file" accept="image/*" onChange={(event) => setCoverFile(event.target.files?.[0] || null)} className="mt-2 w-full text-sm" required={!id} />
-            {coverPath && <p className="mt-2 text-sm text-neutral-600">Current cover: {coverPath}</p>}
+            <input
+              id="content-cover"
+              type="file"
+              accept="image/*"
+              onChange={(event) =>
+                setCoverFile(event.target.files?.[0] || null)
+              }
+              className="mt-2 w-full text-sm"
+              required={!id}
+            />
+            {coverPath && (
+              <p className="mt-2 text-sm text-neutral-600">
+                Current cover: {coverPath}
+              </p>
+            )}
           </div>
         </>
       )}
-      {error && <p className="text-sm text-red-700" role="alert">{error}</p>}
+      {error && (
+        <p className="text-sm text-red-700" role="alert">
+          {error}
+        </p>
+      )}
       <button type="submit" disabled={saving} className="button-primary">
         {saving ? "Saving..." : id ? "Update Content" : "Save Content"}
       </button>
@@ -1136,12 +1439,18 @@ function AdminTeamPage() {
         <section className="mx-auto max-w-5xl px-6 py-14">
           <div className="space-y-4">
             {members.map((member) => (
-              <article key={member.id} className="flex justify-between rounded-lg border border-neutral-200 bg-white p-4 shadow-sm">
+              <article
+                key={member.id}
+                className="flex justify-between rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
+              >
                 <div>
                   <h2 className="font-semibold">{member.name}</h2>
                   <p className="text-sm text-neutral-600">{member.role}</p>
                 </div>
-                <Link href={`/admin/team/${member.id}/edit`} className="text-blue-950 underline-offset-4 hover:underline">
+                <Link
+                  href={`/admin/team/${member.id}/edit`}
+                  className="text-blue-950 underline-offset-4 hover:underline"
+                >
                   Edit
                 </Link>
               </article>
@@ -1157,9 +1466,13 @@ function NotFoundPage() {
   return (
     <PageShell title="Page not found">
       <section className="mx-auto max-w-7xl px-6 py-14 md:px-10">
-        <p className="text-neutral-700">We could not find the page you requested.</p>
+        <p className="text-neutral-700">
+          We could not find the page you requested.
+        </p>
         <div className="mt-6">
-          <Link href="/" className="button-primary">Back Home</Link>
+          <Link href="/" className="button-primary">
+            Back Home
+          </Link>
         </div>
       </section>
     </PageShell>
@@ -1171,13 +1484,17 @@ function RouteSwitch({ pathname }: { pathname: string }) {
 
   if (pathname === "/") return <HomePage />;
   if (pathname === "/magazines") return <MagazinesPage />;
-  if (parts[0] === "magazines" && parts[1]) return <ContentDetailPage type="magazine" slug={parts[1]} />;
+  if (parts[0] === "magazines" && parts[1])
+    return <ContentDetailPage type="magazine" slug={parts[1]} />;
   if (pathname === "/blogs") return <ContentListPage type="blog" />;
-  if (parts[0] === "blogs" && parts[1]) return <ContentDetailPage type="blog" slug={parts[1]} />;
+  if (parts[0] === "blogs" && parts[1])
+    return <ContentDetailPage type="blog" slug={parts[1]} />;
   if (pathname === "/newsletters") return <ContentListPage type="newsletter" />;
-  if (parts[0] === "newsletters" && parts[1]) return <ContentDetailPage type="newsletter" slug={parts[1]} />;
+  if (parts[0] === "newsletters" && parts[1])
+    return <ContentDetailPage type="newsletter" slug={parts[1]} />;
   if (pathname === "/media-production") return <ContentListPage type="media" />;
-  if (parts[0] === "media-production" && parts[1]) return <ContentDetailPage type="media" slug={parts[1]} />;
+  if (parts[0] === "media-production" && parts[1])
+    return <ContentDetailPage type="media" slug={parts[1]} />;
   if (pathname === "/about") return <AboutPage />;
   if (pathname === "/credits") return <CreditsPage />;
   if (pathname === "/search") return <SearchPage />;
@@ -1185,7 +1502,12 @@ function RouteSwitch({ pathname }: { pathname: string }) {
   if (pathname === "/admin") return <AdminDashboard />;
   if (pathname === "/admin/content") return <AdminContentPage />;
   if (pathname === "/admin/content/new") return <AdminContentFormPage />;
-  if (parts[0] === "admin" && parts[1] === "content" && parts[2] && parts[3] === "edit") {
+  if (
+    parts[0] === "admin" &&
+    parts[1] === "content" &&
+    parts[2] &&
+    parts[3] === "edit"
+  ) {
     return <AdminContentFormPage id={parts[2]} />;
   }
   if (pathname === "/admin/team") return <AdminTeamPage />;
