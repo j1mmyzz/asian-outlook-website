@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+:root {
+  color: #171717;
+  background: #f1f5f9;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #f1f5f9;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.button-primary {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  background: #171717;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}
+
+.button-primary:hover {
+  background: #172554;
+}
+
+.button-secondary {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid #d4d4d4;
+  background: white;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #262626;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}
+
+.button-secondary:hover {
+  border-color: #171717;
+  background: #171717;
+  color: white;
+}
+
+.button-light {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  background: #171717;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: white;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.button-light:hover {
+  background: #404040;
+}
+
+.button-primary:focus-visible,
+.button-secondary:focus-visible,
+.button-light:focus-visible,
+.card-link:focus-visible {
+  outline: 2px solid #172554;
+  outline-offset: 3px;
+}
+
+.button-light:focus-visible {
+  outline-color: white;
+}
+
+.card-link {
+  display: block;
+  border-radius: 1.5rem;
+  border: 1px solid #e5e5e5;
+  background: white;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.05);
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease,
+    border-color 150ms ease;
+}
+
+.card-link:hover {
+  transform: translateY(-0.25rem);
+  border-color: #171717;
+  box-shadow: 0 10px 25px rgb(0 0 0 / 0.12);
+}
+
+.form-input {
+  margin-top: 0.5rem;
+  width: 100%;
+  border-radius: 0.5rem;
+  border: 1px solid #a3a3a3;
+  background: white;
+  padding: 0.75rem 1rem;
+  color: #171717;
+}
+
+.form-input:focus-visible {
+  outline: 2px solid #172554;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
