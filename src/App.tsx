@@ -772,21 +772,21 @@ function AboutPage() {
     {
       title: "Leadership",
       members: [
-        { role: "President", names: ["Rui Zheng"] },
-        { role: "Vice President", names: ["Anderson Li"] },
-        { role: "Secretary", names: ["Stephanie Zhou"] },
+        { role: "President", names: ["Kate Sum"] },
+        { role: "Vice President", names: ["Lauren Jim"] },
+        { role: "Financial Vice President", names: ["Madison Hernandez"] },
+        { role: "Secretary", names: ["Jimmy Zheng"] },
       ],
     },
     {
       title: "Editorial Team",
       members: [
-        { role: "Editor-In-Chief", names: ["Kate Sum"] },
-        { role: "Conscience Editor", names: ["Shirley Zhang"] },
+        { role: "Editor-In-Chief", names: ["Ellie Kim"] },
+        { role: "Conscience Editor", names: ["Ianna Choi"] },
         {
           role: "Copy Editors",
-          names: ["Annie Ngo", "Ellie Kim", "Lauren Jim"],
+          names: ["Lindsay Chen", "Ava Gabriel", "Annie Ngo"],
         },
-        { role: "Copy Interns", names: ["Ava Gabriel", "Lindsay Chen"] },
       ],
     },
     {
@@ -794,9 +794,13 @@ function AboutPage() {
       members: [
         {
           role: "Layout Editors",
-          names: ["Ianna Choi", "Jimmy Zheng", "Kimberly Cheong", "Mandy Guan"],
+          names: [
+            "Mandy Guan",
+            "Reema Kaur",
+            "Lise Kubota",
+            "Suguru D'Agostino",
+          ],
         },
-        { role: "Layout Interns", names: ["Lise Kubota", "Reema Kaur"] },
       ],
     },
     {
@@ -804,34 +808,34 @@ function AboutPage() {
       members: [
         {
           role: "Publicity Chairs",
-          names: ["Kristen Li", "Suguru D'Agostino"],
+          names: ["John Michael Mata", "Alison Lou"],
         },
-        { role: "Fundraising Chair", names: ["Madison Hernandez"] },
-        { role: "Event Coordinators", names: ["Andy Huang", "Madison Lee"] },
-        { role: "Political Coordinator", names: ["Grace Lim"] },
-        { role: "Historians", names: ["Jacky Jiang", "Lia Tsin"] },
+        { role: "Fundraising Chair", names: ["Fei Chen"] },
+        { role: "Event Coordinators", names: ["Therese Roque", "Hoi yau Lam"] },
+        { role: "Political Coordinator", names: ["Kristen Li", "Andrea Hsu"] },
+        { role: "Multimedia", names: ["Jacky Jiang", "Brady Overtoom"] },
       ],
     },
     {
-      title: "Media Team",
+      title: "Podcast",
       members: [
         {
-          role: "Media Producers",
-          names: ["Brady Overtoom", "Donovan Lai", "Jasmin Pais", "Lydia Luo"],
+          role: "Podcast Directors",
+          names: ["Madison Lee", "Donovan Lai", "Lydia Luo"],
         },
       ],
     },
     {
-      title: "Additional Staff",
+      title: "Additional",
       members: [
-        { role: "Senior Advisor", names: ["Carmen Tan"] },
         {
-          role: "General Interns",
+          role: "Senior Advisor",
           names: [
-            "Andrea Hsu",
-            "Gabriel Marasigan",
-            "Ryan Shin",
-            "Scarlett Kennedy",
+            "Shirley Zhang",
+            "Andy Huang",
+            "Kimberly Cheong",
+            "Grace Lim",
+            "Stephanie Zhou",
           ],
         },
       ],
