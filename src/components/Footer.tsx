@@ -54,10 +54,10 @@ export function Footer() {
                 Newsletters
               </Link>
               <Link
-                href="/media-production"
+                href="/podcasts"
                 className="transition hover:text-white"
               >
-                Media Production
+                Podcasts
               </Link>
             </div>
           </nav>

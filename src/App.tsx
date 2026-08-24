@@ -24,9 +24,9 @@ const contentLabels: Record<
     path: "/newsletters",
   },
   media: {
-    plural: "Media Production",
-    singular: "Media",
-    path: "/media-production",
+    plural: "Podcasts",
+    singular: "Podcast",
+    path: "/podcasts",
   },
 };
 
@@ -346,9 +346,9 @@ function HomePage() {
         {
           data: media,
           eyebrow: "Multimedia",
-          title: "Media Production",
-          href: "/media-production",
-          label: "Media",
+          title: "Podcasts",
+          href: "/podcasts",
+          label: "Podcast",
         },
       ].map((section, index) => (
         <section
@@ -1321,7 +1321,7 @@ function ContentForm({ id }: { id?: string }) {
           <option value="magazine">Magazine</option>
           <option value="blog">Blog</option>
           <option value="newsletter">Newsletter</option>
-          <option value="media">Media</option>
+          <option value="media">Podcast</option>
         </select>
       </div>
       <div>
@@ -1496,8 +1496,8 @@ function RouteSwitch({ pathname }: { pathname: string }) {
   if (pathname === "/newsletters") return <ContentListPage type="newsletter" />;
   if (parts[0] === "newsletters" && parts[1])
     return <ContentDetailPage type="newsletter" slug={parts[1]} />;
-  if (pathname === "/media-production") return <ContentListPage type="media" />;
-  if (parts[0] === "media-production" && parts[1])
+  if (pathname === "/podcasts") return <ContentListPage type="media" />;
+  if (parts[0] === "podcasts" && parts[1])
     return <ContentDetailPage type="media" slug={parts[1]} />;
   if (pathname === "/about") return <AboutPage />;
   if (pathname === "/credits") return <CreditsPage />;

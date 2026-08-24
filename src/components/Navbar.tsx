@@ -7,7 +7,7 @@ const navLinks = [
   { href: "/magazines", label: "Magazines" },
   { href: "/blogs", label: "Blogs" },
   { href: "/newsletters", label: "Newsletters" },
-  { href: "/media-production", label: "Media Production" },
+  { href: "/podcasts", label: "Podcasts" },
   { href: "/about", label: "About Us" },
 ];
 
