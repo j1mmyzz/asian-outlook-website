@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Footer } from "./components/Footer";
 import { Navbar } from "./components/Navbar";
 import { DeleteContentButton } from "./components/DeleteContentButton";
@@ -10,7 +10,7 @@ import { publicStorageUrl, supabase } from "./lib/supabase";
 import type { ContentItem, ContentType, TeamMember } from "./types";
 
 const contentSelect =
-  "id, type, title, slug, description, cover_image_path, pdf_path, created_at, is_published";
+  "id, type, title, slug, description, body_html, cover_image_path, pdf_path, created_at, is_published";
 
 const contentLabels: Record<
   ContentType,
@@ -30,16 +30,57 @@ const contentLabels: Record<
   },
 };
 
+const teamSections = [
+  "Leadership",
+  "Editorial Team",
+  "Layout Team",
+  "Operations",
+  "Podcast Team",
+  "Additional Staff",
+];
+
+const podcastShows = [
+  {
+    name: "Inside Outlook",
+    showId: "79Q5XizKCwj2Zj4EJEBSd8",
+  },
+  {
+    name: "AO After Hours",
+    showId: "2SKnRB11NfQVHulSg5MX5A",
+  },
+  {
+    name: "AO Storytime",
+    showId: "4VJltDo2cUVOj6FSmonbZZ",
+  },
+];
+
+const contentCache = new Map<string, ContentItem[]>();
+
+function contentCacheKey(type?: ContentType, limit?: number) {
+  return `${type || "all"}:${limit || "all"}`;
+}
+
 function useContent(type?: ContentType, limit?: number) {
-  const [items, setItems] = useState<ContentItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const cacheKey = contentCacheKey(type, limit);
+  const [items, setItems] = useState<ContentItem[]>(
+    () => contentCache.get(cacheKey) || [],
+  );
+  const [loading, setLoading] = useState(() => !contentCache.has(cacheKey));
   const [error, setError] = useState("");
 
   useEffect(() => {
     let mounted = true;
+    const cachedItems = contentCache.get(cacheKey);
+
+    if (cachedItems) {
+      setItems(cachedItems);
+      setLoading(false);
+    } else {
+      setItems([]);
+      setLoading(true);
+    }
 
     async function loadContent() {
-      setLoading(true);
       setError("");
 
       let query = supabase
@@ -54,8 +95,15 @@ function useContent(type?: ContentType, limit?: number) {
       const { data, error: queryError } = await query;
 
       if (!mounted) return;
-      if (queryError) setError(queryError.message);
-      setItems((data as ContentItem[]) || []);
+      if (queryError) {
+        setError(queryError.message);
+        setLoading(false);
+        return;
+      }
+
+      const nextItems = (data as ContentItem[]) || [];
+      contentCache.set(cacheKey, nextItems);
+      setItems(nextItems);
       setLoading(false);
     }
 
@@ -63,7 +111,7 @@ function useContent(type?: ContentType, limit?: number) {
     return () => {
       mounted = false;
     };
-  }, [type, limit]);
+  }, [cacheKey, limit, type]);
 
   return { items, loading, error };
 }
@@ -160,7 +208,7 @@ function PageShell({
 function LoadingMessage({ label = "Loading content..." }: { label?: string }) {
   return (
     <p
-      className="rounded-xl border border-neutral-200 bg-white p-6 text-neutral-700"
+      className="rounded-none border border-neutral-200 bg-white p-6 text-neutral-700"
       role="status"
     >
       {label}
@@ -171,11 +219,200 @@ function LoadingMessage({ label = "Loading content..." }: { label?: string }) {
 function ErrorMessage({ message }: { message: string }) {
   return (
     <p
-      className="rounded-xl border border-red-200 bg-red-50 p-6 text-red-700"
+      className="rounded-none border border-red-200 bg-red-50 p-6 text-red-700"
       role="alert"
     >
       {message}
     </p>
+  );
+}
+
+const allowedHtmlTags = new Set([
+  "a",
+  "blockquote",
+  "br",
+  "div",
+  "em",
+  "figcaption",
+  "figure",
+  "h2",
+  "h3",
+  "h4",
+  "hr",
+  "img",
+  "li",
+  "ol",
+  "p",
+  "strong",
+  "span",
+  "ul",
+]);
+
+const MIN_FONT_SIZE = 10;
+const MAX_FONT_SIZE = 48;
+const MIN_LINE_HEIGHT = 1;
+const MAX_LINE_HEIGHT = 3;
+
+function normalizeFontSize(value: string) {
+  const match = value.trim().match(/^(\d+(?:\.\d+)?)px$/);
+  if (!match) return "";
+
+  const size = Number(match[1]);
+  if (!Number.isFinite(size) || size < MIN_FONT_SIZE || size > MAX_FONT_SIZE) {
+    return "";
+  }
+
+  return `${Math.round(size * 100) / 100}px`;
+}
+
+function normalizeLineHeight(value: string) {
+  const match = value.trim().match(/^\d+(?:\.\d+)?$/);
+  if (!match) return "";
+
+  const lineHeight = Number(match[0]);
+  if (
+    !Number.isFinite(lineHeight) ||
+    lineHeight < MIN_LINE_HEIGHT ||
+    lineHeight > MAX_LINE_HEIGHT
+  ) {
+    return "";
+  }
+
+  return String(Math.round(lineHeight * 100) / 100);
+}
+
+function safeInlineStyleFromElement(element: HTMLElement) {
+  const styles: string[] = [];
+  const fontSize = normalizeFontSize(element.style.fontSize);
+  const lineHeight = normalizeLineHeight(element.style.lineHeight);
+
+  if (fontSize) styles.push("font-size: " + fontSize + ";");
+  if (lineHeight) styles.push("line-height: " + lineHeight + ";");
+
+  return styles.join(" ");
+}
+
+function isSafeUrl(value: string, allowHash = false) {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (allowHash && trimmed.startsWith("#")) return true;
+  if (trimmed.startsWith("/")) return true;
+
+  try {
+    const url = new URL(trimmed, window.location.origin);
+    return ["http:", "https:", "mailto:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
+}
+
+function sanitizeImportedHtml(html: string) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+
+  function cleanNode(node: Node): Node | null {
+    if (node.nodeType === Node.TEXT_NODE) {
+      return document.createTextNode(node.textContent || "");
+    }
+
+    if (node.nodeType !== Node.ELEMENT_NODE) return null;
+
+    const element = node as HTMLElement;
+    const tagName = element.tagName.toLowerCase();
+
+    if (!allowedHtmlTags.has(tagName)) {
+      const fragment = document.createDocumentFragment();
+      element.childNodes.forEach((child) => {
+        const cleanChild = cleanNode(child);
+        if (cleanChild) fragment.appendChild(cleanChild);
+      });
+      return fragment;
+    }
+
+    const cleanElement = document.createElement(tagName);
+
+    if (tagName === "a") {
+      const href = element.getAttribute("href");
+      if (href && isSafeUrl(href, true)) {
+        cleanElement.setAttribute("href", href);
+        cleanElement.setAttribute("rel", "noreferrer");
+      }
+    }
+
+    if (tagName === "img") {
+      const src = element.getAttribute("src");
+      if (!src || !isSafeUrl(src)) return null;
+      cleanElement.setAttribute("src", src);
+      cleanElement.setAttribute("alt", element.getAttribute("alt") || "");
+      cleanElement.setAttribute("loading", "lazy");
+    }
+
+    const title = element.getAttribute("title");
+    if (title) cleanElement.setAttribute("title", title);
+
+    element.childNodes.forEach((child) => {
+      const cleanChild = cleanNode(child);
+      if (cleanChild) cleanElement.appendChild(cleanChild);
+    });
+
+    if (tagName === "span") {
+      const isEditorTextStyle =
+        element.getAttribute("data-ao-text-style") === "true";
+      const inlineStyle = isEditorTextStyle
+        ? safeInlineStyleFromElement(element)
+        : "";
+
+      if (!inlineStyle) {
+        const fragment = document.createDocumentFragment();
+        cleanElement.childNodes.forEach((child) =>
+          fragment.appendChild(child.cloneNode(true)),
+        );
+        return fragment;
+      }
+
+      cleanElement.setAttribute("data-ao-text-style", "true");
+      cleanElement.setAttribute("style", inlineStyle);
+    }
+
+    if (
+      tagName === "figcaption" &&
+      cleanElement.querySelector("p, ol, ul, h2, h3, h4, blockquote")
+    ) {
+      const fragment = document.createDocumentFragment();
+      cleanElement.childNodes.forEach((child) =>
+        fragment.appendChild(child.cloneNode(true)),
+      );
+      return fragment;
+    }
+
+    if (tagName === "figure" && !cleanElement.querySelector("img")) {
+      const fragment = document.createDocumentFragment();
+      cleanElement.childNodes.forEach((child) =>
+        fragment.appendChild(child.cloneNode(true)),
+      );
+      return fragment;
+    }
+
+    return cleanElement;
+  }
+
+  const container = document.createElement("div");
+  template.content.childNodes.forEach((child) => {
+    const cleanChild = cleanNode(child);
+    if (cleanChild) container.appendChild(cleanChild);
+  });
+
+  return container.innerHTML;
+}
+
+function ImportedHtml({ html }: { html: string }) {
+  const safeHtml = useMemo(() => sanitizeImportedHtml(html), [html]);
+
+  return (
+    <div
+      className="wp-content p-8 text-lg leading-8 text-neutral-700 md:p-10"
+      dangerouslySetInnerHTML={{ __html: safeHtml }}
+    />
   );
 }
 
@@ -219,18 +456,41 @@ function SimpleCard({
   hrefBase: string;
   fallbackLabel: string;
 }) {
+  const coverUrl =
+    publicStorageUrl("covers", item.cover_image_path) || "/magazine_image.jpg";
+
   return (
-    <Link href={`${hrefBase}/${item.slug}`} className="card-link group p-6">
-      <h3 className="text-xl font-semibold text-neutral-900 transition group-hover:text-blue-900">
-        {item.title || fallbackLabel}
-      </h3>
-      <p className="mt-3 text-sm leading-6 text-neutral-600">
-        {item.description || fallbackLabel}
-      </p>
-      <span className="mt-5 inline-block text-sm font-medium text-neutral-900">
-        Read more →
-      </span>
-    </Link>
+    <article className="group overflow-hidden rounded-[10px] border border-neutral-200 bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-lg">
+      <Link
+        href={`${hrefBase}/${item.slug}`}
+        className="block focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-950"
+      >
+        <div className="relative aspect-[3/4] overflow-hidden bg-neutral-200">
+          <SafeImage
+            src={coverUrl}
+            alt=""
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
+          <div className="absolute bottom-0 left-0 right-0 p-5 text-white">
+            <p className="text-xs font-semibold uppercase tracking-[0.25em]">
+              {fallbackLabel}
+            </p>
+            <h3 className="mt-2 text-xl font-semibold leading-tight">
+              {item.title || fallbackLabel}
+            </h3>
+          </div>
+        </div>
+      </Link>
+      <div className="flex flex-wrap items-center gap-4 p-5">
+        <Link
+          href={`${hrefBase}/${item.slug}`}
+          className="text-sm font-medium text-neutral-900 underline-offset-4 hover:underline"
+        >
+          View {fallbackLabel}
+        </Link>
+      </div>
+    </article>
   );
 }
 
@@ -238,7 +498,6 @@ function HomePage() {
   const magazines = useContent("magazine", 3);
   const newsletters = useContent("newsletter", 3);
   const blogs = useContent("blog", 3);
-  const media = useContent("media", 3);
 
   return (
     <main className="bg-slate-100 text-neutral-900">
@@ -343,13 +602,6 @@ function HomePage() {
           href: "/blogs",
           label: "Blog",
         },
-        {
-          data: media,
-          eyebrow: "Multimedia",
-          title: "Podcasts",
-          href: "/podcasts",
-          label: "Podcast",
-        },
       ].map((section, index) => (
         <section
           key={section.href}
@@ -379,6 +631,55 @@ function HomePage() {
           </div>
         </section>
       ))}
+
+      <section className="border-t border-neutral-200 bg-white">
+        <div className="mx-auto max-w-7xl px-6 py-20 md:px-10 md:py-24">
+          <SectionHeader
+            eyebrow="Multimedia"
+            title="Podcasts"
+            description="Listen to the latest episodes from our Spotify shows."
+            href="/podcasts"
+          />
+          <div className="grid gap-8 lg:grid-cols-3">
+            {podcastShows.map((show) => {
+              const spotifyUrl = `https://open.spotify.com/show/${show.showId}`;
+              const embedUrl = `https://open.spotify.com/embed/show/${show.showId}?utm_source=generator`;
+
+              return (
+                <article
+                  key={show.showId}
+                  className="overflow-hidden rounded-none border border-neutral-200 bg-white p-6 shadow-sm"
+                >
+                  <div className="mb-5">
+                    <h3 className="text-2xl font-bold tracking-tight text-neutral-950">
+                      {show.name}
+                    </h3>
+                  </div>
+
+                  <iframe
+                    title={`${show.name} latest Spotify episodes`}
+                    src={embedUrl}
+                    width="100%"
+                    height="352"
+                    allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                    loading="lazy"
+                    className="w-full rounded-none border-0"
+                  />
+
+                  <a
+                    href={spotifyUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="button-secondary mt-5"
+                  >
+                    Listen on Spotify
+                  </a>
+                </article>
+              );
+            })}
+          </div>
+        </div>
+      </section>
 
       <section className="border-t border-neutral-200 bg-slate-100">
         <div className="mx-auto max-w-7xl px-6 py-16 md:px-10 md:py-20">
@@ -504,7 +805,7 @@ function MagazinesPage() {
       <section className="mx-auto max-w-7xl px-6 py-14 md:px-10 md:py-20">
         {error && <ErrorMessage message="Failed to load magazines." />}
         {loading && <LoadingMessage />}
-        {featured && (
+        {!loading && featured && (
           <article className="group overflow-hidden rounded-[10px] border border-neutral-200 bg-white shadow-sm">
             <div className="grid lg:grid-cols-[1.1fr_0.9fr]">
               <div className="relative min-h-[320px] overflow-hidden">
@@ -556,7 +857,7 @@ function MagazinesPage() {
           </p>
         </div>
         {archive.length === 0 && !loading ? (
-          <p className="rounded-[1.75rem] border border-neutral-200 bg-white p-8 text-neutral-600">
+          <p className="rounded-none border border-neutral-200 bg-white p-8 text-neutral-600">
             No archived magazines yet.
           </p>
         ) : (
@@ -593,12 +894,27 @@ function MagazinesPage() {
 
 function ContentListPage({ type }: { type: Exclude<ContentType, "magazine"> }) {
   const { items, loading, error } = useContent(type);
+  const { isAdmin } = useIsAdmin();
   const labels = contentLabels[type];
+  const [visibleCount, setVisibleCount] = useState(6);
+  const featured = items[0];
+  const archive = items.slice(1);
+  const visibleArchive = archive.slice(0, visibleCount);
 
   return (
     <PageShell
       title={labels.plural}
       description={`Browse Asian Outlook ${labels.plural.toLowerCase()} entries.`}
+      actions={
+        isAdmin && (
+          <Link
+            href={`/admin/content/new?type=${type}`}
+            className="button-primary"
+          >
+            Add {labels.singular}
+          </Link>
+        )
+      }
     >
       <section className="mx-auto max-w-7xl px-6 py-14 md:px-10 md:py-20">
         {error && (
@@ -606,15 +922,55 @@ function ContentListPage({ type }: { type: Exclude<ContentType, "magazine"> }) {
             message={`Failed to load ${labels.plural.toLowerCase()}.`}
           />
         )}
-        {loading ? (
-          <LoadingMessage />
-        ) : items.length === 0 ? (
-          <p className="rounded-[1.75rem] border border-neutral-200 bg-white p-8 text-neutral-600">
+        {loading && <LoadingMessage />}
+        {!loading && items.length === 0 && (
+          <p className="rounded-none border border-neutral-200 bg-white p-8 text-neutral-600">
             No {labels.plural.toLowerCase()} published yet.
           </p>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-3">
-            {items.map((item) => (
+        )}
+        {!loading && featured && (
+          <article className="group overflow-hidden rounded-[10px] border border-neutral-200 bg-white shadow-sm">
+            <div className="grid lg:grid-cols-[1.1fr_0.9fr]">
+              <div className="relative min-h-[320px] overflow-hidden">
+                <SafeImage
+                  src={
+                    publicStorageUrl("covers", featured.cover_image_path) ||
+                    "/magazine_image.jpg"
+                  }
+                  alt=""
+                  className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                />
+              </div>
+              <div className="flex flex-col justify-center p-8 md:p-10">
+                <p className="text-sm font-semibold uppercase tracking-[0.25em] text-blue-950">
+                  Featured {labels.singular}
+                </p>
+                <h2 className="mt-3 text-3xl font-bold tracking-tight text-neutral-950 md:text-4xl">
+                  {featured.title}
+                </h2>
+                <div className="mt-8 flex flex-wrap gap-3">
+                  <Link
+                    href={`${labels.path}/${featured.slug}`}
+                    className="button-primary"
+                  >
+                    View {labels.singular}
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </article>
+        )}
+      </section>
+
+      {!loading && archive.length > 0 && (
+        <section className="mx-auto max-w-7xl px-6 pb-20 md:px-10 md:pb-24">
+          <div className="mb-8 max-w-2xl">
+            <h2 className="text-3xl font-bold tracking-tight text-neutral-950">
+              More {labels.plural}
+            </h2>
+          </div>
+          <div className="grid gap-8 sm:grid-cols-2 xl:grid-cols-3">
+            {visibleArchive.map((item) => (
               <SimpleCard
                 key={item.id}
                 item={item}
@@ -623,7 +979,68 @@ function ContentListPage({ type }: { type: Exclude<ContentType, "magazine"> }) {
               />
             ))}
           </div>
-        )}
+          {visibleCount < archive.length && (
+            <div className="mt-12 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setVisibleCount((count) => count + 6)}
+                className="button-secondary"
+              >
+                Show more {labels.plural.toLowerCase()}
+              </button>
+            </div>
+          )}
+        </section>
+      )}
+    </PageShell>
+  );
+}
+
+function PodcastPage() {
+  return (
+    <PageShell
+      title="Podcasts"
+      description="Welcome to the podcast and audio department of Asian Outlook. Listen to the latest episodes from Inside Outlook, AO After Hours, and AO Storytime."
+    >
+      <section className="mx-auto max-w-7xl px-6 py-14 md:px-10 md:py-20">
+        <div className="grid gap-8 lg:grid-cols-3">
+          {podcastShows.map((show) => {
+            const spotifyUrl = `https://open.spotify.com/show/${show.showId}`;
+            const embedUrl = `https://open.spotify.com/embed/show/${show.showId}?utm_source=generator`;
+
+            return (
+              <article
+                key={show.showId}
+                className="overflow-hidden rounded-none border border-neutral-200 bg-white p-6 shadow-sm"
+              >
+                <div className="mb-5">
+                  <h2 className="text-2xl font-bold tracking-tight text-neutral-950">
+                    {show.name}
+                  </h2>
+                </div>
+
+                <iframe
+                  title={`${show.name} latest Spotify episodes`}
+                  src={embedUrl}
+                  width="100%"
+                  height="352"
+                  allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                  loading="lazy"
+                  className="w-full rounded-none border-0"
+                />
+
+                <a
+                  href={spotifyUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="button-secondary mt-5"
+                >
+                  Listen on Spotify
+                </a>
+              </article>
+            );
+          })}
+        </div>
       </section>
     </PageShell>
   );
@@ -695,7 +1112,9 @@ function ContentDetailPage({
     <PageShell
       title={item.title}
       eyebrow={labels.singular}
-      description={item.description || undefined}
+      description={
+        type === "magazine" ? item.description || undefined : undefined
+      }
       actions={
         isAdmin && (
           <div className="flex flex-wrap gap-3">
@@ -722,15 +1141,15 @@ function ContentDetailPage({
               <SafeImage
                 src={coverUrl}
                 alt={`Cover for ${item.title}`}
-                className="w-full rounded-lg border border-neutral-200 bg-white object-cover shadow-sm"
+                className="w-full rounded-none border border-neutral-200 bg-white object-cover shadow-sm"
               />
-              <div className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-sm">
+              <div className="rounded-none border border-neutral-200 bg-white p-6 shadow-sm">
                 <h2 className="text-2xl font-bold text-neutral-950">
                   Read this issue
                 </h2>
                 <p className="mt-3 text-base leading-7 text-neutral-700">
-                  Use the accessible PDF controls below, or download the file to
-                  read it in your preferred PDF reader.
+                  Read the magazine below, or download the file to read it in
+                  your preferred PDF reader.
                 </p>
                 {pdfUrl ? (
                   <div className="mt-6 flex flex-wrap gap-3">
@@ -756,10 +1175,23 @@ function ContentDetailPage({
             {pdfUrl && <MagazineFlipbook pdfUrl={pdfUrl} />}
           </>
         ) : (
-          <article className="rounded-[1.75rem] border border-neutral-200 bg-white p-8 shadow-sm">
-            <p className="text-lg leading-8 text-neutral-700">
-              {item.description || "More details will be published soon."}
-            </p>
+          <article className="overflow-hidden rounded-none border border-neutral-200 bg-white shadow-sm">
+            {coverUrl && (
+              <div className="px-8 pt-[50px]">
+                <SafeImage
+                  src={coverUrl}
+                  alt={`Cover image for ${item.title}`}
+                  className="mx-auto h-auto max-h-[720px] w-full object-contain bg-white"
+                />
+              </div>
+            )}
+            {item.body_html ? (
+              <ImportedHtml html={item.body_html} />
+            ) : (
+              <p className="p-8 text-lg leading-8 text-neutral-700 md:p-10">
+                {item.description || "More details will be published soon."}
+              </p>
+            )}
           </article>
         )}
       </section>
@@ -767,22 +1199,36 @@ function ContentDetailPage({
   );
 }
 
-function AboutPage() {
-  const boardSections = [
+function fallbackBoardSections() {
+  return [
     {
       title: "Leadership",
       members: [
-        { role: "President", names: ["Kate Sum"] },
-        { role: "Vice President", names: ["Lauren Jim"] },
-        { role: "Financial Vice President", names: ["Madison Hernandez"] },
-        { role: "Secretary", names: ["Jimmy Zheng"] },
+        {
+          role: "President",
+          names: ["Kate Sum"],
+        },
+        {
+          role: "Vice President",
+          names: ["Lauren Jim"],
+        },
+        {
+          role: "Treasurer",
+          names: ["Madison Hernandez"],
+        },
+        {
+          role: "Secretary",
+          names: ["Jimmy Zheng"],
+        },
       ],
     },
     {
       title: "Editorial Team",
       members: [
-        { role: "Editor-In-Chief", names: ["Ellie Kim"] },
-        { role: "Conscience Editor", names: ["Ianna Choi"] },
+        {
+          role: "Editor in Chief",
+          names: ["Ellie Kim"],
+        },
         {
           role: "Copy Editors",
           names: ["Lindsay Chen", "Ava Gabriel", "Annie Ngo"],
@@ -792,6 +1238,10 @@ function AboutPage() {
     {
       title: "Layout Team",
       members: [
+        {
+          role: "Conscience Editor",
+          names: ["Ianna Choi"],
+        },
         {
           role: "Layout Editors",
           names: [
@@ -807,29 +1257,41 @@ function AboutPage() {
       title: "Operations",
       members: [
         {
-          role: "Publicity Chairs",
+          role: "Publicity Chair",
           names: ["John Michael Mata", "Alison Lou"],
         },
-        { role: "Fundraising Chair", names: ["Fei Chen"] },
-        { role: "Event Coordinators", names: ["Therese Roque", "Hoi yau Lam"] },
-        { role: "Political Coordinator", names: ["Kristen Li", "Andrea Hsu"] },
-        { role: "Multimedia", names: ["Jacky Jiang", "Brady Overtoom"] },
-      ],
-    },
-    {
-      title: "Podcast",
-      members: [
         {
-          role: "Podcast Directors",
-          names: ["Madison Lee", "Donovan Lai", "Lydia Luo"],
+          role: "Event Coordinators",
+          names: ["Hoi yau Lam", "Therese Roque"],
+        },
+        {
+          role: "Political Coordinator",
+          names: ["Kristen Li", "Andrea Hsu"],
+        },
+        {
+          role: "Fundraising Chair",
+          names: ["Fei Chen"],
+        },
+        {
+          role: "Multimedia",
+          names: ["Jacky Jiang", "Brady Overtoom"],
         },
       ],
     },
     {
-      title: "Additional",
+      title: "Podcast Team",
       members: [
         {
-          role: "Senior Advisor",
+          role: "Podcast Director",
+          names: ["Lydia Luo", "Madison Lee", "Donovan Lai"],
+        },
+      ],
+    },
+    {
+      title: "Additional Staff",
+      members: [
+        {
+          role: "Advisors",
           names: [
             "Shirley Zhang",
             "Andy Huang",
@@ -841,6 +1303,73 @@ function AboutPage() {
       ],
     },
   ];
+}
+
+function teamSectionIndex(section: string) {
+  const index = teamSections.indexOf(section);
+  return index === -1 ? teamSections.length : index;
+}
+
+function sortTeamMembers(entries: TeamMember[]) {
+  return [...entries].sort((a, b) => {
+    const sectionDifference =
+      teamSectionIndex(a.section || "Team") -
+      teamSectionIndex(b.section || "Team");
+    if (sectionDifference !== 0) return sectionDifference;
+
+    return (
+      (a.display_order ?? Number.MAX_SAFE_INTEGER) -
+      (b.display_order ?? Number.MAX_SAFE_INTEGER)
+    );
+  });
+}
+
+function groupTeamMembers(members: TeamMember[]) {
+  const sectionMap = new Map<string, Map<string, string[]>>();
+
+  sortTeamMembers(members).forEach((member) => {
+    const section = member.section?.trim() || "Team";
+    const role = member.role.trim();
+    if (!sectionMap.has(section)) sectionMap.set(section, new Map());
+    const roleMap = sectionMap.get(section)!;
+    if (!roleMap.has(role)) roleMap.set(role, []);
+    roleMap.get(role)!.push(member.name);
+  });
+
+  return Array.from(sectionMap.entries()).map(([title, roleMap]) => ({
+    title,
+    members: Array.from(roleMap.entries()).map(([role, names]) => ({
+      role,
+      names,
+    })),
+  }));
+}
+
+function AboutPage() {
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [loadingTeam, setLoadingTeam] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+
+    supabase
+      .from("team_members")
+      .select("*")
+      .order("display_order", { ascending: true })
+      .then(({ data }) => {
+        if (!mounted) return;
+        setTeamMembers(sortTeamMembers((data as TeamMember[]) || []));
+        setLoadingTeam(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const boardSections = teamMembers.length
+    ? groupTeamMembers(teamMembers)
+    : fallbackBoardSections();
 
   return (
     <PageShell
@@ -850,17 +1379,18 @@ function AboutPage() {
       <section className="mx-auto max-w-7xl px-6 py-14 md:px-10 md:py-20">
         <div className="mb-10 max-w-3xl">
           <p className="mb-2 text-sm font-semibold uppercase tracking-[0.25em] text-blue-950">
-            Spring 2026
+            {teamMembers[0]?.season || "Spring 2026"}
           </p>
           <h2 className="text-3xl font-bold tracking-tight text-neutral-950 md:text-4xl">
             Executive Board
           </h2>
         </div>
+        {loadingTeam && <LoadingMessage label="Loading team information..." />}
         <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
           {boardSections.map((section) => (
             <section
               key={section.title}
-              className="rounded-[1.75rem] border border-neutral-200 bg-white p-6 shadow-sm"
+              className="rounded-none border border-neutral-200 bg-white p-6 shadow-sm"
             >
               <h3 className="text-xl font-semibold tracking-tight text-neutral-950">
                 {section.title}
@@ -891,7 +1421,7 @@ function CreditsPage() {
       <section className="flex items-center justify-center px-6 py-24">
         <div className="max-w-2xl text-center">
           <p className="text-lg text-neutral-700">Site made by</p>
-          <p className="mt-2 text-5xl font-extrabold text-black md:text-7xl">
+          <p className="mt-2 text-5xl font-extrabold text-black md:text-5xl">
             Jimmy Zheng
           </p>
           <p className="mt-6 text-lg text-neutral-700">
@@ -937,14 +1467,14 @@ function SearchPage() {
           id="site-search"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          className="mt-2 w-full rounded-lg border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-950"
+          className="mt-2 w-full rounded-none border border-neutral-300 bg-white px-4 py-3 text-base text-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-950"
           placeholder="Search by title, description, or type"
           type="search"
         />
         <div className="mt-8" aria-live="polite">
           {loading && <LoadingMessage label="Loading searchable content..." />}
           {!loading && query && results.length === 0 && (
-            <p className="rounded-lg border border-neutral-200 bg-white p-6 text-neutral-700">
+            <p className="rounded-none border border-neutral-200 bg-white p-6 text-neutral-700">
               No results found.
             </p>
           )}
@@ -994,7 +1524,7 @@ function LoginPage() {
       <section className="mx-auto max-w-md px-6 py-14">
         <form
           onSubmit={handleLogin}
-          className="space-y-4 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm"
+          className="space-y-4 rounded-none border border-neutral-200 bg-white p-6 shadow-sm"
         >
           <div>
             <label
@@ -1153,7 +1683,7 @@ function AdminContentPage() {
               {items.map((item) => (
                 <article
                   key={item.id}
-                  className="flex flex-col justify-between gap-4 rounded-lg border border-neutral-200 bg-white p-4 shadow-sm md:flex-row md:items-center"
+                  className="flex flex-col justify-between gap-4 rounded-none border border-neutral-200 bg-white p-4 shadow-sm md:flex-row md:items-center"
                 >
                   <div>
                     <h2 className="font-semibold text-neutral-950">
@@ -1190,6 +1720,306 @@ function AdminContentPage() {
   );
 }
 
+function slugSafePath(value: string) {
+  return (
+    value
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9.]+/g, "-")
+      .replace(/^-|-$/g, "") || "content"
+  );
+}
+
+function storageSafeFileName(fileName: string) {
+  const parts = fileName.split(".");
+  const extension = parts.length > 1 ? parts.pop() || "" : "";
+  const baseName = parts.join(".") || fileName;
+  const safeBaseName = slugSafePath(baseName);
+  const safeExtension = extension ? slugSafePath(extension) : "";
+  return safeExtension ? `${safeBaseName}.${safeExtension}` : safeBaseName;
+}
+
+function EditorButton({
+  children,
+  onClick,
+  pressed,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  pressed?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={pressed}
+      className="border border-neutral-300 bg-white px-3 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-950"
+    >
+      {children}
+    </button>
+  );
+}
+
+function RichTextEditor({
+  value,
+  onChange,
+  slug,
+  onError,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  slug: string;
+  onError: (message: string) => void;
+}) {
+  const editorRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [imageAlt, setImageAlt] = useState("");
+  const [fontSizeInput, setFontSizeInput] = useState("22");
+  const [lineHeightInput, setLineHeightInput] = useState("1.85");
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (editor && editor.innerHTML !== value) {
+      editor.innerHTML = value;
+    }
+  }, [value]);
+
+  function updateValue() {
+    onChange(editorRef.current?.innerHTML || "");
+  }
+
+  function runCommand(command: string, commandValue?: string) {
+    editorRef.current?.focus();
+    document.execCommand(command, false, commandValue);
+    updateValue();
+  }
+
+  function makeHeading(level: "h2" | "h3" | "p") {
+    runCommand("formatBlock", level);
+  }
+
+  function applySelectedInlineStyle(styles: {
+    fontSize?: string;
+    lineHeight?: string;
+  }) {
+    const editor = editorRef.current;
+    editor?.focus();
+
+    const selection = window.getSelection();
+    if (
+      !editor ||
+      !selection ||
+      selection.rangeCount === 0 ||
+      selection.isCollapsed
+    ) {
+      onError("Select text before changing its style.");
+      return;
+    }
+
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) {
+      onError("Select text inside the editor before changing its style.");
+      return;
+    }
+
+    const span = document.createElement("span");
+    span.setAttribute("data-ao-text-style", "true");
+    if (styles.fontSize) span.style.fontSize = styles.fontSize;
+    if (styles.lineHeight) span.style.lineHeight = styles.lineHeight;
+    span.appendChild(range.extractContents());
+    range.insertNode(span);
+
+    selection.removeAllRanges();
+    const nextRange = document.createRange();
+    nextRange.selectNodeContents(span);
+    selection.addRange(nextRange);
+
+    onError("");
+    updateValue();
+  }
+
+  function applyFontSize() {
+    const fontSize = normalizeFontSize(`${fontSizeInput}px`);
+    if (!fontSize) {
+      onError(`Enter a font size from ${MIN_FONT_SIZE} to ${MAX_FONT_SIZE}.`);
+      return;
+    }
+
+    applySelectedInlineStyle({ fontSize });
+  }
+
+  function applyLineHeight() {
+    const lineHeight = normalizeLineHeight(lineHeightInput);
+    if (!lineHeight) {
+      onError(
+        `Enter line spacing from ${MIN_LINE_HEIGHT} to ${MAX_LINE_HEIGHT}.`,
+      );
+      return;
+    }
+
+    applySelectedInlineStyle({ lineHeight });
+  }
+
+  function addLink() {
+    const url = window.prompt("Link URL");
+    if (!url) return;
+    if (!isSafeUrl(url)) {
+      onError(
+        "Please enter a valid http, https, mailto, or site-relative URL.",
+      );
+      return;
+    }
+    runCommand("createLink", url);
+  }
+
+  async function uploadInlineImage(file: File) {
+    const alt = imageAlt.trim();
+    if (!alt) {
+      onError("Alt text is required before uploading an inline image.");
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      return;
+    }
+
+    setUploadingImage(true);
+    onError("");
+
+    try {
+      const path = `content/${slugSafePath(slug)}/${Date.now()}-${storageSafeFileName(file.name)}`;
+      const { error: uploadError } = await supabase.storage
+        .from("covers")
+        .upload(path, file);
+
+      if (uploadError) throw new Error(uploadError.message);
+
+      const imageUrl = publicStorageUrl("covers", path);
+      if (!imageUrl) throw new Error("Unable to create image URL.");
+
+      editorRef.current?.focus();
+      document.execCommand(
+        "insertHTML",
+        false,
+        `<figure><img src="${imageUrl}" alt="${alt.replace(/"/g, "&quot;")}" /><figcaption>${alt}</figcaption></figure><p><br></p>`,
+      );
+      setImageAlt("");
+      updateValue();
+    } catch (caught) {
+      onError(
+        caught instanceof Error ? caught.message : "Unable to upload image.",
+      );
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <div
+        className="flex flex-wrap gap-2"
+        aria-label="Content formatting toolbar"
+        role="toolbar"
+      >
+        <EditorButton onClick={() => runCommand("bold")}>Bold</EditorButton>
+        <EditorButton onClick={() => runCommand("italic")}>Italic</EditorButton>
+        <EditorButton onClick={() => makeHeading("h2")}>H2</EditorButton>
+        <EditorButton onClick={() => makeHeading("h3")}>H3</EditorButton>
+        <EditorButton onClick={() => makeHeading("p")}>Paragraph</EditorButton>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-sm font-medium text-neutral-900">
+            Font size
+            <input
+              type="number"
+              min={MIN_FONT_SIZE}
+              max={MAX_FONT_SIZE}
+              step="1"
+              value={fontSizeInput}
+              onChange={(event) => setFontSizeInput(event.currentTarget.value)}
+              className="mt-1 h-10 w-24 border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-950"
+              aria-label="Font size in pixels"
+            />
+          </label>
+          <EditorButton onClick={applyFontSize}>Apply size</EditorButton>
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="text-sm font-medium text-neutral-900">
+            Line spacing
+            <input
+              type="number"
+              min={MIN_LINE_HEIGHT}
+              max={MAX_LINE_HEIGHT}
+              step="0.05"
+              value={lineHeightInput}
+              onChange={(event) =>
+                setLineHeightInput(event.currentTarget.value)
+              }
+              className="mt-1 h-10 w-24 border border-neutral-300 bg-white px-3 text-sm font-medium text-neutral-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-950"
+              aria-label="Line spacing multiplier"
+            />
+          </label>
+          <EditorButton onClick={applyLineHeight}>Apply spacing</EditorButton>
+        </div>
+        <EditorButton onClick={() => runCommand("insertUnorderedList")}>
+          Bullets
+        </EditorButton>
+        <EditorButton onClick={() => runCommand("insertOrderedList")}>
+          Numbered
+        </EditorButton>
+        <EditorButton onClick={addLink}>Link</EditorButton>
+      </div>
+
+      <div className="grid gap-3 border border-neutral-200 bg-neutral-50 p-4 md:grid-cols-[1fr_auto] md:items-end">
+        <div>
+          <label
+            htmlFor="inline-image-alt"
+            className="block text-sm font-medium text-neutral-900"
+          >
+            Inline image alt text
+          </label>
+          <input
+            id="inline-image-alt"
+            value={imageAlt}
+            onChange={(event) => setImageAlt(event.target.value)}
+            className="form-input"
+            placeholder="Describe the image for screen readers"
+          />
+        </div>
+        <div>
+          <input
+            ref={fileInputRef}
+            id="inline-image-file"
+            type="file"
+            accept="image/*"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) uploadInlineImage(file);
+            }}
+            className="sr-only"
+          />
+          <label
+            htmlFor="inline-image-file"
+            className="button-secondary h-14 cursor-pointer"
+            aria-disabled={uploadingImage}
+          >
+            {uploadingImage ? "Uploading..." : "Upload Image"}
+          </label>
+        </div>
+      </div>
+
+      <div
+        ref={editorRef}
+        id="content-body"
+        contentEditable
+        role="textbox"
+        aria-multiline="true"
+        aria-label="Content body"
+        onInput={updateValue}
+        className="wp-content min-h-[24rem] border border-neutral-300 bg-white p-5 text-base leading-7 text-neutral-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-950"
+      />
+    </div>
+  );
+}
+
 function ContentForm({ id }: { id?: string }) {
   const searchParams = new URLSearchParams(window.location.search);
   const initialType = (searchParams.get("type") || "") as ContentType | "";
@@ -1200,6 +2030,7 @@ function ContentForm({ id }: { id?: string }) {
   const [coverPath, setCoverPath] = useState<string | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [bodyHtml, setBodyHtml] = useState("");
   const [loading, setLoading] = useState(Boolean(id));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1220,6 +2051,7 @@ function ContentForm({ id }: { id?: string }) {
           setSlug(item.slug);
           setPdfPath(item.pdf_path);
           setCoverPath(item.cover_image_path);
+          setBodyHtml(item.body_html || "");
         }
         setLoading(false);
       });
@@ -1233,8 +2065,14 @@ function ContentForm({ id }: { id?: string }) {
       throw new Error("PDF and cover image are required for new magazines.");
     }
 
+    if ((type === "blog" || type === "newsletter") && !id && !coverFile) {
+      throw new Error(
+        "A cover image is required for new blogs and newsletters.",
+      );
+    }
+
     if (pdfFile) {
-      const path = `${slug}/${Date.now()}-${pdfFile.name}`;
+      const path = `${slugSafePath(slug)}/${Date.now()}-${storageSafeFileName(pdfFile.name)}`;
       const { error: uploadError } = await supabase.storage
         .from("magazines")
         .upload(path, pdfFile);
@@ -1244,7 +2082,7 @@ function ContentForm({ id }: { id?: string }) {
     }
 
     if (coverFile) {
-      const path = `${slug}/${Date.now()}-${coverFile.name}`;
+      const path = `${slugSafePath(slug)}/${Date.now()}-${storageSafeFileName(coverFile.name)}`;
       const { error: uploadError } = await supabase.storage
         .from("covers")
         .upload(path, coverFile);
@@ -1266,13 +2104,21 @@ function ContentForm({ id }: { id?: string }) {
       if (!title.trim()) throw new Error("Title is required.");
       if (!slug.trim()) throw new Error("Slug is required.");
 
+      if ((type === "blog" || type === "newsletter") && !bodyHtml.trim()) {
+        throw new Error("Content is required for blogs and newsletters.");
+      }
+
       const { nextPdfPath, nextCoverPath } = await uploadAssets();
+      const sanitizedBody = bodyHtml.trim()
+        ? sanitizeImportedHtml(bodyHtml)
+        : null;
       const payload = {
         type,
         title: title.trim(),
         slug: slug.trim(),
         description: null,
-        pdf_path: nextPdfPath,
+        body_html: type === "magazine" ? null : sanitizedBody,
+        pdf_path: type === "magazine" ? nextPdfPath : null,
         cover_image_path: nextCoverPath,
         is_published: true,
       };
@@ -1299,7 +2145,7 @@ function ContentForm({ id }: { id?: string }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="space-y-5 rounded-lg border border-neutral-200 bg-white p-6 shadow-sm"
+      className="space-y-5 rounded-none border border-neutral-200 bg-white p-6 shadow-sm"
     >
       <div>
         <label
@@ -1321,7 +2167,6 @@ function ContentForm({ id }: { id?: string }) {
           <option value="magazine">Magazine</option>
           <option value="blog">Blog</option>
           <option value="newsletter">Newsletter</option>
-          <option value="media">Podcast</option>
         </select>
       </div>
       <div>
@@ -1355,52 +2200,71 @@ function ContentForm({ id }: { id?: string }) {
         />
       </div>
       {type === "magazine" && (
-        <>
-          <div>
-            <label
-              htmlFor="content-pdf"
-              className="block text-sm font-medium text-neutral-900"
-            >
-              {id ? "Replace PDF" : "PDF"}
-            </label>
-            <input
-              id="content-pdf"
-              type="file"
-              accept="application/pdf"
-              onChange={(event) => setPdfFile(event.target.files?.[0] || null)}
-              className="mt-2 w-full text-sm"
-              required={!id}
+        <div>
+          <label
+            htmlFor="content-pdf"
+            className="block text-sm font-medium text-neutral-900"
+          >
+            {id ? "Replace PDF" : "PDF"}
+          </label>
+          <input
+            id="content-pdf"
+            type="file"
+            accept="application/pdf"
+            onChange={(event) => setPdfFile(event.target.files?.[0] || null)}
+            className="mt-2 w-full text-sm"
+            required={!id}
+          />
+          {pdfPath && (
+            <p className="mt-2 text-sm text-neutral-600">
+              Current PDF: {pdfPath}
+            </p>
+          )}
+        </div>
+      )}
+      {type && type !== "media" && (
+        <div>
+          <label
+            htmlFor="content-cover"
+            className="block text-sm font-medium text-neutral-900"
+          >
+            {id ? "Replace cover image" : "Cover image"}
+          </label>
+          <input
+            id="content-cover"
+            type="file"
+            accept="image/*"
+            onChange={(event) => setCoverFile(event.target.files?.[0] || null)}
+            className="mt-2 w-full text-sm"
+            required={
+              !id &&
+              (type === "magazine" || type === "blog" || type === "newsletter")
+            }
+          />
+          {coverPath && (
+            <p className="mt-2 text-sm text-neutral-600">
+              Current cover: {coverPath}
+            </p>
+          )}
+        </div>
+      )}
+      {(type === "blog" || type === "newsletter") && (
+        <div>
+          <label
+            htmlFor="content-body"
+            className="block text-sm font-medium text-neutral-900"
+          >
+            Content
+          </label>
+          <div className="mt-2">
+            <RichTextEditor
+              value={bodyHtml}
+              onChange={setBodyHtml}
+              slug={slug}
+              onError={setError}
             />
-            {pdfPath && (
-              <p className="mt-2 text-sm text-neutral-600">
-                Current PDF: {pdfPath}
-              </p>
-            )}
           </div>
-          <div>
-            <label
-              htmlFor="content-cover"
-              className="block text-sm font-medium text-neutral-900"
-            >
-              {id ? "Replace cover image" : "Cover image"}
-            </label>
-            <input
-              id="content-cover"
-              type="file"
-              accept="image/*"
-              onChange={(event) =>
-                setCoverFile(event.target.files?.[0] || null)
-              }
-              className="mt-2 w-full text-sm"
-              required={!id}
-            />
-            {coverPath && (
-              <p className="mt-2 text-sm text-neutral-600">
-                Current cover: {coverPath}
-              </p>
-            )}
-          </div>
-        </>
+        </div>
       )}
       {error && (
         <p className="text-sm text-red-700" role="alert">
@@ -1426,46 +2290,658 @@ function AdminContentFormPage({ id }: { id?: string }) {
   );
 }
 
+type TeamFormState = {
+  name: string;
+  role: string;
+  section: string;
+  season: string;
+  display_order: string;
+};
+
 function AdminTeamPage() {
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [draft, setDraft] = useState<TeamFormState>({
+    name: "",
+    role: "",
+    section: "",
+    season: "",
+    display_order: "",
+  });
+  const [newMember, setNewMember] = useState<TeamFormState>({
+    name: "",
+    role: "",
+    section: "",
+    season: "",
+    display_order: "",
+  });
 
-  useEffect(() => {
-    supabase
+  async function loadMembers() {
+    setLoading(true);
+    const { data, error: queryError } = await supabase
       .from("team_members")
       .select("*")
-      .order("display_order")
-      .then(({ data }) => setMembers((data as TeamMember[]) || []));
+      .order("section", { ascending: true })
+      .order("display_order", { ascending: true });
+
+    const nextMembers = (data as TeamMember[]) || [];
+    if (queryError) setError(queryError.message);
+    else setMembers(sortMembers(nextMembers));
+    setLoading(false);
+    return queryError ? [] : nextMembers;
+  }
+
+  useEffect(() => {
+    loadMembers();
   }, []);
+
+  function startEditing(member: TeamMember) {
+    setEditingId(member.id);
+    setDraft({
+      name: member.name,
+      role: member.role,
+      section: member.section || "",
+      season: member.season || "",
+      display_order: String(member.display_order ?? ""),
+    });
+    setError("");
+  }
+
+  function teamPayload(form: TeamFormState) {
+    if (!form.name.trim()) throw new Error("Name is required.");
+    if (!form.role.trim()) throw new Error("Role is required.");
+    if (!form.section.trim()) throw new Error("Section is required.");
+
+    const parsedOrder = form.display_order.trim()
+      ? Number(form.display_order)
+      : null;
+
+    if (parsedOrder !== null && Number.isNaN(parsedOrder)) {
+      throw new Error("Display order must be a number.");
+    }
+
+    return {
+      name: form.name.trim(),
+      role: form.role.trim(),
+      section: form.section.trim(),
+      season: form.season.trim() || null,
+      display_order: parsedOrder,
+    };
+  }
+
+  function memberSection(member: TeamMember) {
+    return member.section || "Team";
+  }
+
+  function sortMembers(entries: TeamMember[]) {
+    return [...entries].sort((a, b) => {
+      const sectionDifference =
+        teamSectionIndex(memberSection(a)) - teamSectionIndex(memberSection(b));
+      if (sectionDifference !== 0) return sectionDifference;
+
+      return (
+        (a.display_order ?? Number.MAX_SAFE_INTEGER) -
+        (b.display_order ?? Number.MAX_SAFE_INTEGER)
+      );
+    });
+  }
+
+  function sectionMembers(section: string, sourceMembers = members) {
+    return sortMembers(
+      sourceMembers.filter((member) => memberSection(member) === section),
+    );
+  }
+
+  async function shiftDisplayOrders(
+    section: string,
+    order: number,
+    excludeId?: number,
+    sourceMembers = members,
+  ) {
+    const rowsToShift = sectionMembers(section, sourceMembers)
+      .filter(
+        (member) =>
+          member.display_order !== null &&
+          member.display_order !== undefined &&
+          member.display_order >= order &&
+          member.id !== excludeId,
+      )
+      .sort((a, b) => (b.display_order || 0) - (a.display_order || 0));
+
+    for (const member of rowsToShift) {
+      const { error: shiftError } = await supabase
+        .from("team_members")
+        .update({ display_order: (member.display_order || 0) + 1 })
+        .eq("id", member.id);
+
+      if (shiftError) throw new Error(shiftError.message);
+    }
+  }
+
+  async function moveDisplayOrder(
+    memberId: number,
+    oldSection: string,
+    newSection: string,
+    oldOrder: number | null | undefined,
+    newOrder: number | null,
+  ) {
+    if (oldSection !== newSection) {
+      if (oldOrder !== null && oldOrder !== undefined) {
+        await compactSectionAfterRemoval(oldSection, oldOrder, memberId);
+      }
+      if (newOrder !== null) {
+        await shiftDisplayOrders(newSection, newOrder, memberId);
+      }
+      return;
+    }
+
+    if (oldOrder === newOrder) return;
+
+    if (newOrder === null) {
+      if (oldOrder === null || oldOrder === undefined) return;
+      await compactSectionAfterRemoval(oldSection, oldOrder, memberId);
+      return;
+    }
+
+    if (oldOrder === null || oldOrder === undefined) {
+      await shiftDisplayOrders(newSection, newOrder, memberId);
+      return;
+    }
+
+    const movingUp = newOrder < oldOrder;
+    const rowsToShift = sectionMembers(newSection)
+      .filter((member) => {
+        if (
+          member.id === memberId ||
+          member.display_order === null ||
+          member.display_order === undefined
+        ) {
+          return false;
+        }
+
+        return movingUp
+          ? member.display_order >= newOrder && member.display_order < oldOrder
+          : member.display_order > oldOrder && member.display_order <= newOrder;
+      })
+      .sort((a, b) =>
+        movingUp
+          ? (b.display_order || 0) - (a.display_order || 0)
+          : (a.display_order || 0) - (b.display_order || 0),
+      );
+
+    for (const member of rowsToShift) {
+      const { error: shiftError } = await supabase
+        .from("team_members")
+        .update({
+          display_order: (member.display_order || 0) + (movingUp ? 1 : -1),
+        })
+        .eq("id", member.id);
+
+      if (shiftError) throw new Error(shiftError.message);
+    }
+  }
+
+  async function compactSectionAfterRemoval(
+    section: string,
+    removedOrder: number,
+    removedId?: number,
+  ) {
+    const rowsToShift = sectionMembers(section)
+      .filter(
+        (entry) =>
+          entry.id !== removedId &&
+          entry.display_order !== null &&
+          entry.display_order !== undefined &&
+          entry.display_order > removedOrder,
+      )
+      .sort((a, b) => (a.display_order || 0) - (b.display_order || 0));
+
+    for (const entry of rowsToShift) {
+      const { error: shiftError } = await supabase
+        .from("team_members")
+        .update({ display_order: (entry.display_order || 0) - 1 })
+        .eq("id", entry.id);
+
+      if (shiftError) throw new Error(shiftError.message);
+    }
+  }
+
+  async function normalizeDisplayOrders(sourceMembers = members) {
+    for (const section of teamSections) {
+      const orderedMembers = sectionMembers(section, sourceMembers);
+
+      for (let index = 0; index < orderedMembers.length; index += 1) {
+        const member = orderedMembers[index];
+        const nextOrder = index + 1;
+        if (member.display_order === nextOrder) continue;
+
+        const { error: normalizeError } = await supabase
+          .from("team_members")
+          .update({ display_order: nextOrder })
+          .eq("id", member.id);
+
+        if (normalizeError) throw new Error(normalizeError.message);
+      }
+    }
+  }
+
+  async function saveMember(id: number) {
+    setSaving(true);
+    setError("");
+
+    try {
+      const payload = teamPayload(draft);
+      const existingMember = members.find((member) => member.id === id);
+      await moveDisplayOrder(
+        id,
+        existingMember?.section || "Team",
+        payload.section,
+        existingMember?.display_order,
+        payload.display_order,
+      );
+
+      const { error: updateError } = await supabase
+        .from("team_members")
+        .update(payload)
+        .eq("id", id);
+
+      if (updateError) throw new Error(updateError.message);
+      const latestMembers = await loadMembers();
+      await normalizeDisplayOrders(latestMembers);
+      await loadMembers();
+      setEditingId(null);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function addMember(event: FormEvent) {
+    event.preventDefault();
+    setSaving(true);
+    setError("");
+
+    try {
+      const payload = teamPayload(newMember);
+      if (payload.display_order !== null) {
+        await shiftDisplayOrders(payload.section, payload.display_order);
+      }
+
+      const { error: insertError } = await supabase
+        .from("team_members")
+        .insert(payload);
+
+      if (insertError) throw new Error(insertError.message);
+      const latestMembers = await loadMembers();
+      await normalizeDisplayOrders(latestMembers);
+      await loadMembers();
+      setNewMember({
+        name: "",
+        role: "",
+        section: "",
+        season: "",
+        display_order: "",
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to add.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteMember(member: TeamMember) {
+    if (!window.confirm(`Delete ${member.name}?`)) return;
+    setSaving(true);
+    setError("");
+
+    try {
+      const deletedOrder = member.display_order;
+      const { error: deleteError } = await supabase
+        .from("team_members")
+        .delete()
+        .eq("id", member.id);
+
+      if (deleteError) throw new Error(deleteError.message);
+
+      if (deletedOrder !== null && deletedOrder !== undefined) {
+        await compactSectionAfterRemoval(
+          member.section || "Team",
+          deletedOrder,
+          member.id,
+        );
+      }
+
+      const latestMembers = await loadMembers();
+      await normalizeDisplayOrders(latestMembers);
+      await loadMembers();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Unable to delete.");
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <RequireAdmin>
-      <PageShell title="Team">
-        <section className="mx-auto max-w-5xl px-6 py-14">
-          <div className="space-y-4">
-            {members.map((member) => (
-              <article
-                key={member.id}
-                className="flex justify-between rounded-lg border border-neutral-200 bg-white p-4 shadow-sm"
+      <PageShell
+        title="Team"
+        description="Changes here update the About Us executive board section."
+      >
+        <section className="mx-auto max-w-6xl px-6 py-14">
+          {error && <ErrorMessage message={error} />}
+          <form
+            onSubmit={addMember}
+            className="admin-team-form mb-8 grid gap-4 border border-neutral-200 bg-white p-5 shadow-sm md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_10rem_8rem_auto] lg:items-end"
+          >
+            <div>
+              <label
+                htmlFor="new-team-name"
+                className="block text-sm font-medium text-neutral-900"
               >
-                <div>
-                  <h2 className="font-semibold">{member.name}</h2>
-                  <p className="text-sm text-neutral-600">{member.role}</p>
-                </div>
-                <Link
-                  href={`/admin/team/${member.id}/edit`}
-                  className="text-blue-950 underline-offset-4 hover:underline"
-                >
-                  Edit
-                </Link>
-              </article>
-            ))}
-          </div>
+                Name
+              </label>
+              <input
+                id="new-team-name"
+                value={newMember.name}
+                onChange={(event) =>
+                  setNewMember((member) => ({
+                    ...member,
+                    name: event.target.value,
+                  }))
+                }
+                className="form-input"
+                required
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="new-team-role"
+                className="block text-sm font-medium text-neutral-900"
+              >
+                Role
+              </label>
+              <input
+                id="new-team-role"
+                value={newMember.role}
+                onChange={(event) =>
+                  setNewMember((member) => ({
+                    ...member,
+                    role: event.target.value,
+                  }))
+                }
+                className="form-input"
+                required
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="new-team-section"
+                className="block text-sm font-medium text-neutral-900"
+              >
+                Section
+              </label>
+              <select
+                id="new-team-section"
+                value={newMember.section}
+                onChange={(event) =>
+                  setNewMember((member) => ({
+                    ...member,
+                    section: event.target.value,
+                  }))
+                }
+                className="form-input"
+                required
+              >
+                <option value="" disabled>
+                  Select section
+                </option>
+                {teamSections.map((section) => (
+                  <option key={section} value={section}>
+                    {section}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label
+                htmlFor="new-team-season"
+                className="block text-sm font-medium text-neutral-900"
+              >
+                Season
+              </label>
+              <input
+                id="new-team-season"
+                value={newMember.season}
+                onChange={(event) =>
+                  setNewMember((member) => ({
+                    ...member,
+                    season: event.target.value,
+                  }))
+                }
+                className="form-input"
+                placeholder="Semester Year"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="new-team-order"
+                className="block text-sm font-medium text-neutral-900"
+              >
+                Order
+              </label>
+              <input
+                id="new-team-order"
+                value={newMember.display_order}
+                onChange={(event) =>
+                  setNewMember((member) => ({
+                    ...member,
+                    display_order: event.target.value,
+                  }))
+                }
+                className="form-input"
+                inputMode="numeric"
+              />
+            </div>
+            <button type="submit" disabled={saving} className="button-primary">
+              Add
+            </button>
+          </form>
+
+          {loading ? (
+            <LoadingMessage label="Loading team members..." />
+          ) : members.length === 0 ? (
+            <p className="border border-neutral-200 bg-white p-8 text-neutral-600">
+              No Supabase team members yet. Run the About Us seed SQL once to
+              load the current board.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {members.map((member) => {
+                const editing = editingId === member.id;
+
+                return (
+                  <article
+                    key={member.id}
+                    className="border border-neutral-200 bg-white p-4 shadow-sm"
+                  >
+                    {editing ? (
+                      <div className="admin-team-form grid gap-4 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_10rem_8rem_auto] lg:items-end">
+                        <div>
+                          <label
+                            htmlFor={`team-name-${member.id}`}
+                            className="block text-sm font-medium text-neutral-900"
+                          >
+                            Name
+                          </label>
+                          <input
+                            id={`team-name-${member.id}`}
+                            value={draft.name}
+                            onChange={(event) =>
+                              setDraft((value) => ({
+                                ...value,
+                                name: event.target.value,
+                              }))
+                            }
+                            className="form-input"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`team-role-${member.id}`}
+                            className="block text-sm font-medium text-neutral-900"
+                          >
+                            Role
+                          </label>
+                          <input
+                            id={`team-role-${member.id}`}
+                            value={draft.role}
+                            onChange={(event) =>
+                              setDraft((value) => ({
+                                ...value,
+                                role: event.target.value,
+                              }))
+                            }
+                            className="form-input"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`team-section-${member.id}`}
+                            className="block text-sm font-medium text-neutral-900"
+                          >
+                            Section
+                          </label>
+                          <select
+                            id={`team-section-${member.id}`}
+                            value={draft.section}
+                            onChange={(event) =>
+                              setDraft((value) => ({
+                                ...value,
+                                section: event.target.value,
+                              }))
+                            }
+                            className="form-input"
+                            required
+                          >
+                            <option value="" disabled>
+                              Select section
+                            </option>
+                            {teamSections.map((section) => (
+                              <option key={section} value={section}>
+                                {section}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`team-season-${member.id}`}
+                            className="block text-sm font-medium text-neutral-900"
+                          >
+                            Season
+                          </label>
+                          <input
+                            id={`team-season-${member.id}`}
+                            value={draft.season}
+                            onChange={(event) =>
+                              setDraft((value) => ({
+                                ...value,
+                                season: event.target.value,
+                              }))
+                            }
+                            className="form-input"
+                            placeholder="Semester Year"
+                          />
+                        </div>
+                        <div>
+                          <label
+                            htmlFor={`team-order-${member.id}`}
+                            className="block text-sm font-medium text-neutral-900"
+                          >
+                            Order
+                          </label>
+                          <input
+                            id={`team-order-${member.id}`}
+                            value={draft.display_order}
+                            onChange={(event) =>
+                              setDraft((value) => ({
+                                ...value,
+                                display_order: event.target.value,
+                              }))
+                            }
+                            className="form-input"
+                            inputMode="numeric"
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          <button
+                            type="button"
+                            onClick={() => saveMember(member.id)}
+                            disabled={saving}
+                            className="button-primary"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(null)}
+                            disabled={saving}
+                            className="button-secondary"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                        <div>
+                          <h2 className="font-semibold text-neutral-950">
+                            {member.name}
+                          </h2>
+                          <p className="text-sm text-neutral-600">
+                            {member.role}
+                          </p>
+                          <p className="mt-1 text-xs text-neutral-500">
+                            {member.section || "Team"} ·{" "}
+                            {member.season || "No season"} · Order:{" "}
+                            {member.display_order ?? "none"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <button
+                            type="button"
+                            onClick={() => startEditing(member)}
+                            className="text-sm font-medium text-blue-950 underline-offset-4 hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => deleteMember(member)}
+                            disabled={saving}
+                            className="text-sm font-medium text-red-700 underline-offset-4 hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </section>
       </PageShell>
     </RequireAdmin>
   );
 }
-
 function NotFoundPage() {
   return (
     <PageShell title="Page not found">
@@ -1496,8 +2972,9 @@ function RouteSwitch({ pathname }: { pathname: string }) {
   if (pathname === "/newsletters") return <ContentListPage type="newsletter" />;
   if (parts[0] === "newsletters" && parts[1])
     return <ContentDetailPage type="newsletter" slug={parts[1]} />;
-  if (pathname === "/podcasts") return <ContentListPage type="media" />;
-  if (parts[0] === "podcasts" && parts[1])
+  if (pathname === "/podcasts" || pathname === "/media-production")
+    return <PodcastPage />;
+  if ((parts[0] === "podcasts" || parts[0] === "media-production") && parts[1])
     return <ContentDetailPage type="media" slug={parts[1]} />;
   if (pathname === "/about") return <AboutPage />;
   if (pathname === "/credits") return <CreditsPage />;

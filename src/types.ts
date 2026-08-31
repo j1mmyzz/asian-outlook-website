@@ -6,6 +6,7 @@ export type ContentItem = {
   title: string;
   slug: string;
   description: string | null;
+  body_html: string | null;
   cover_image_path: string | null;
   pdf_path: string | null;
   created_at: string;
@@ -16,5 +17,7 @@ export type TeamMember = {
   id: number;
   name: string;
   role: string;
-  display_order?: number;
+  section?: string | null;
+  season?: string | null;
+  display_order?: number | null;
 };
