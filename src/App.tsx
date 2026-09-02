@@ -229,6 +229,7 @@ function ErrorMessage({ message }: { message: string }) {
 
 const allowedHtmlTags = new Set([
   "a",
+  "b",
   "blockquote",
   "br",
   "div",
@@ -239,6 +240,7 @@ const allowedHtmlTags = new Set([
   "h3",
   "h4",
   "hr",
+  "i",
   "img",
   "li",
   "ol",
@@ -292,6 +294,50 @@ function safeInlineStyleFromElement(element: HTMLElement) {
   return styles.join(" ");
 }
 
+function fragmentFromChildren(element: Element) {
+  const fragment = document.createDocumentFragment();
+  element.childNodes.forEach((child) =>
+    fragment.appendChild(child.cloneNode(true)),
+  );
+  return fragment;
+}
+
+function hasBoldStyle(element: HTMLElement) {
+  const fontWeight = element.style.fontWeight.trim().toLowerCase();
+  return (
+    fontWeight === "bold" ||
+    fontWeight === "bolder" ||
+    /^[6-9]00$/.test(fontWeight)
+  );
+}
+
+function hasItalicStyle(element: HTMLElement) {
+  const fontStyle = element.style.fontStyle.trim().toLowerCase();
+  return fontStyle === "italic" || fontStyle === "oblique";
+}
+
+function applySemanticInlineStyles(
+  node: Node,
+  element: HTMLElement,
+  tagName: string,
+) {
+  let nextNode = node;
+
+  if (hasItalicStyle(element) && tagName !== "i" && tagName !== "em") {
+    const em = document.createElement("em");
+    em.appendChild(nextNode);
+    nextNode = em;
+  }
+
+  if (hasBoldStyle(element) && tagName !== "b" && tagName !== "strong") {
+    const strong = document.createElement("strong");
+    strong.appendChild(nextNode);
+    nextNode = strong;
+  }
+
+  return nextNode;
+}
+
 function isSafeUrl(value: string, allowHash = false) {
   const trimmed = value.trim();
   if (!trimmed) return false;
@@ -329,7 +375,8 @@ function sanitizeImportedHtml(html: string) {
       return fragment;
     }
 
-    const cleanElement = document.createElement(tagName);
+    const outputTagName = tagName === "b" ? "strong" : tagName === "i" ? "em" : tagName;
+    const cleanElement = document.createElement(outputTagName);
 
     if (tagName === "a") {
       const href = element.getAttribute("href");
@@ -363,11 +410,11 @@ function sanitizeImportedHtml(html: string) {
         : "";
 
       if (!inlineStyle) {
-        const fragment = document.createDocumentFragment();
-        cleanElement.childNodes.forEach((child) =>
-          fragment.appendChild(child.cloneNode(true)),
+        return applySemanticInlineStyles(
+          fragmentFromChildren(cleanElement),
+          element,
+          tagName,
         );
-        return fragment;
       }
 
       cleanElement.setAttribute("data-ao-text-style", "true");
@@ -378,22 +425,14 @@ function sanitizeImportedHtml(html: string) {
       tagName === "figcaption" &&
       cleanElement.querySelector("p, ol, ul, h2, h3, h4, blockquote")
     ) {
-      const fragment = document.createDocumentFragment();
-      cleanElement.childNodes.forEach((child) =>
-        fragment.appendChild(child.cloneNode(true)),
-      );
-      return fragment;
+      return fragmentFromChildren(cleanElement);
     }
 
     if (tagName === "figure" && !cleanElement.querySelector("img")) {
-      const fragment = document.createDocumentFragment();
-      cleanElement.childNodes.forEach((child) =>
-        fragment.appendChild(child.cloneNode(true)),
-      );
-      return fragment;
+      return fragmentFromChildren(cleanElement);
     }
 
-    return cleanElement;
+    return applySemanticInlineStyles(cleanElement, element, tagName);
   }
 
   const container = document.createElement("div");
