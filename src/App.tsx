@@ -1533,6 +1533,163 @@ function SearchPage() {
   );
 }
 
+function PasswordSetupPage() {
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadInviteSession() {
+      setError("");
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const accessToken = hashParams.get("access_token");
+      const refreshToken = hashParams.get("refresh_token");
+
+      if (accessToken && refreshToken) {
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken,
+        });
+
+        if (sessionError) {
+          if (mounted) {
+            setError(sessionError.message);
+            setLoading(false);
+          }
+          return;
+        }
+
+        window.history.replaceState({}, "", "/admin/set-password");
+      }
+
+      const {
+        data: { session },
+        error: sessionCheckError,
+      } = await supabase.auth.getSession();
+
+      if (!mounted) return;
+      setReady(Boolean(session));
+      setError(sessionCheckError?.message || "");
+      setLoading(false);
+    }
+
+    loadInviteSession();
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  async function handlePasswordUpdate(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+
+    if (password.length < 8) {
+      setError("Password must be at least 8 characters.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    setSaving(true);
+    const { error: updateError } = await supabase.auth.updateUser({ password });
+    setSaving(false);
+
+    if (updateError) {
+      setError(updateError.message);
+      return;
+    }
+
+    navigate("/admin");
+  }
+
+  return (
+    <PageShell
+      title="Set Password"
+      description="Create your password to finish setting up your Asian Outlook admin account."
+    >
+      <section className="mx-auto max-w-md px-6 py-14">
+        {loading ? (
+          <LoadingMessage label="Checking invite session..." />
+        ) : !ready ? (
+          <div className="rounded-none border border-neutral-200 bg-white p-6 shadow-sm">
+            <ErrorMessage
+              message={
+                error ||
+                "This invite link is expired or invalid. Ask an existing admin to send a new invite."
+              }
+            />
+            <Link href="/admin/login" className="button-primary mt-4">
+              Go to admin login
+            </Link>
+          </div>
+        ) : (
+          <form
+            onSubmit={handlePasswordUpdate}
+            className="space-y-4 rounded-none border border-neutral-200 bg-white p-6 shadow-sm"
+          >
+            <div>
+              <label
+                htmlFor="new-password"
+                className="block text-sm font-medium text-neutral-900"
+              >
+                New password
+              </label>
+              <input
+                id="new-password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                className="form-input"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="confirm-new-password"
+                className="block text-sm font-medium text-neutral-900"
+              >
+                Confirm password
+              </label>
+              <input
+                id="confirm-new-password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                className="form-input"
+                type="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </div>
+            {error && (
+              <p className="text-sm text-red-700" role="alert">
+                {error}
+              </p>
+            )}
+            <button
+              className="button-primary w-full justify-center"
+              disabled={saving}
+              type="submit"
+            >
+              {saving ? "Saving password..." : "Set Password"}
+            </button>
+          </form>
+        )}
+      </section>
+    </PageShell>
+  );
+}
+
 function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -3019,6 +3176,7 @@ function RouteSwitch({ pathname }: { pathname: string }) {
   if (pathname === "/credits") return <CreditsPage />;
   if (pathname === "/search") return <SearchPage />;
   if (pathname === "/admin/login") return <LoginPage />;
+  if (pathname === "/admin/set-password") return <PasswordSetupPage />;
   if (pathname === "/admin") return <AdminDashboard />;
   if (pathname === "/admin/content") return <AdminContentPage />;
   if (pathname === "/admin/content/new") return <AdminContentFormPage />;
@@ -3039,6 +3197,25 @@ export default function App() {
 
   useEffect(() => {
     document.title = "Asian Outlook";
+  }, [pathname]);
+
+  useEffect(() => {
+    const hashParams = new URLSearchParams(window.location.hash.slice(1));
+    const type = hashParams.get("type");
+    const hasInviteSession =
+      Boolean(hashParams.get("access_token")) &&
+      Boolean(hashParams.get("refresh_token")) &&
+      (type === "invite" || type === "recovery");
+
+    if (hasInviteSession && pathname !== "/admin/set-password") {
+      window.history.replaceState(
+        {},
+        "",
+        `/admin/set-password${window.location.hash}`,
+      );
+      window.dispatchEvent(new PopStateEvent("popstate"));
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
   }, [pathname]);
 
   return (

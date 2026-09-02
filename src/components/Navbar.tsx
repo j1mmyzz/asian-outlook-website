@@ -57,6 +57,12 @@ export function Navbar({ pathname }: { pathname: string }) {
     navigate("/");
   }
 
+  function handleBrandClick() {
+    if (pathname === "/") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  }
+
   const linkClass = (href: string) =>
     `rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-950 ${
       isActive(pathname, href)
@@ -76,6 +82,7 @@ export function Navbar({ pathname }: { pathname: string }) {
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-6 py-4 md:px-10">
         <Link
           href="/"
+          onClick={handleBrandClick}
           className="shrink-0 rounded-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-950"
           ariaLabel="Asian Outlook home"
         >
