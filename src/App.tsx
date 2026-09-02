@@ -165,6 +165,33 @@ function useIsAdmin() {
   return { adminError, isAdmin, loading, signedIn };
 }
 
+async function editorMetadata() {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  return {
+    last_edited_by: session?.user.email || session?.user.id || "Unknown admin",
+    last_edited_at: new Date().toISOString(),
+  };
+}
+
+function lastEditedText(item: {
+  last_edited_by?: string | null;
+  last_edited_at?: string | null;
+}) {
+  if (!item.last_edited_by) return "Last Edited By: Not recorded yet";
+
+  if (!item.last_edited_at) return `Last Edited By: ${item.last_edited_by}`;
+
+  const editedDate = new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(item.last_edited_at));
+
+  return `Last Edited By: ${item.last_edited_by} on ${editedDate}`;
+}
+
 function PageShell({
   eyebrow = "Asian Outlook",
   title,
@@ -1853,7 +1880,7 @@ function AdminContentPage() {
   useEffect(() => {
     supabase
       .from("content_items")
-      .select(contentSelect)
+      .select("*")
       .order("created_at", { ascending: false })
       .then(({ data }) => {
         setItems((data as ContentItem[]) || []);
@@ -1887,6 +1914,9 @@ function AdminContentPage() {
                     </h2>
                     <p className="text-sm text-neutral-600">
                       {contentLabels[item.type].singular}
+                    </p>
+                    <p className="mt-1 text-sm text-neutral-600">
+                      {lastEditedText(item)}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -2308,6 +2338,7 @@ function ContentForm({ id }: { id?: string }) {
       const sanitizedBody = bodyHtml.trim()
         ? sanitizeImportedHtml(bodyHtml)
         : null;
+      const metadata = await editorMetadata();
       const payload = {
         type,
         title: title.trim(),
@@ -2317,6 +2348,7 @@ function ContentForm({ id }: { id?: string }) {
         pdf_path: type === "magazine" ? nextPdfPath : null,
         cover_image_path: nextCoverPath,
         is_published: true,
+        ...metadata,
       };
 
       const { error: saveError } = id
@@ -2729,7 +2761,10 @@ function AdminTeamPage() {
     setError("");
 
     try {
-      const payload = teamPayload(draft);
+      const payload = {
+        ...teamPayload(draft),
+        ...(await editorMetadata()),
+      };
       const existingMember = members.find((member) => member.id === id);
       await moveDisplayOrder(
         id,
@@ -2762,7 +2797,10 @@ function AdminTeamPage() {
     setError("");
 
     try {
-      const payload = teamPayload(newMember);
+      const payload = {
+        ...teamPayload(newMember),
+        ...(await editorMetadata()),
+      };
       if (payload.display_order !== null) {
         await shiftDisplayOrders(payload.section, payload.display_order);
       }
@@ -3107,6 +3145,9 @@ function AdminTeamPage() {
                             {member.section || "Team"} ·{" "}
                             {member.season || "No season"} · Order:{" "}
                             {member.display_order ?? "none"}
+                          </p>
+                          <p className="mt-2 text-sm text-neutral-600">
+                            {lastEditedText(member)}
                           </p>
                         </div>
                         <div className="flex items-center gap-4">

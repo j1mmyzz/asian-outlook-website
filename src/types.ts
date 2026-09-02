@@ -11,6 +11,8 @@ export type ContentItem = {
   pdf_path: string | null;
   created_at: string;
   is_published: boolean;
+  last_edited_by?: string | null;
+  last_edited_at?: string | null;
 };
 
 export type TeamMember = {
@@ -20,4 +22,6 @@ export type TeamMember = {
   section?: string | null;
   season?: string | null;
   display_order?: number | null;
+  last_edited_by?: string | null;
+  last_edited_at?: string | null;
 };
